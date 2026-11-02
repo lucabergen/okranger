@@ -28,6 +28,8 @@
 
 namespace ranger {
 
+struct ApproxFeatures;
+
 class Forest {
 public:
   Forest();
@@ -56,15 +58,18 @@ public:
       bool keep_inbag, std::vector<double>& sample_fraction, double alpha, double minprop, double poisson_tau, bool holdout,
       PredictionType prediction_type, uint num_random_splits, bool order_snps, uint max_depth,
       const std::vector<double>& regularization_factor, bool regularization_usedepth,
-      bool node_stats);
+      bool node_stats, double approx_tolerance = 0, OutputRepresentation output_representation = OUTPUT_REPRESENTATION_NONE);
   void init(std::unique_ptr<Data> input_data, uint mtry, std::string output_prefix,
       uint num_trees, uint seed, uint num_threads, ImportanceMode importance_mode, std::vector<uint>& min_node_size, std::vector<uint>& min_bucket,
       bool prediction_mode, bool sample_with_replacement, const std::vector<std::string>& unordered_variable_names,
       bool memory_saving_splitting, SplitRule splitrule, bool predict_all, std::vector<double>& sample_fraction,
       double alpha, double minprop, double poisson_tau, bool holdout, PredictionType prediction_type, uint num_random_splits,
       bool order_snps, uint max_depth, const std::vector<double>& regularization_factor, bool regularization_usedepth,
-      bool node_stats);
+      bool node_stats, double approx_tolerance = 0, OutputRepresentation output_representation = OUTPUT_REPRESENTATION_NONE);
   virtual void initInternal() = 0;
+  virtual const ApproxFeatures* approxFeaturesForTree() const {
+    return nullptr;
+  }
 
   // Grow or predict
   void run(bool verbose, bool compute_oob_error);
@@ -237,6 +242,12 @@ protected:
   
   // POISSON splitrule
   double poisson_tau;
+
+  // Error tolerance for the output kernel approximation features
+  double approx_tolerance;
+
+  // Output-kernel representation (explicit features, Gram matrix, or none)
+  OutputRepresentation output_representation;
 
   // Multithreading
   uint num_threads;

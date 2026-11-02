@@ -105,6 +105,18 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
     stop("Error: Invalid forest object.")
   }
   
+  if (identical(forest$treetype, "Output kernel regression")) {
+    if (!(forest$output.representation %in% c("FEATURES", "GRAM"))) {
+      stop("Invalid OKranger forest: output representation is missing or invalid.")
+    }
+    if (!type %in% c("response", "terminalNodes")) {
+      stop("Output kernel regression supports response and terminal-node predictions only.")
+    }
+    if (identical(forest$output.representation, "GRAM") && !identical(type, "terminalNodes")) {
+      stop("Response prediction with 'K' output representation is not supported. Use getForestWeights() to obtain forest weights.")
+    }
+  }
+  
   ## Check for old ranger version
   if (length(forest$child.nodeIDs) != forest$num.trees || length(forest$child.nodeIDs[[1]]) < 2 || length(forest$child.nodeIDs[[1]]) > 3) {
     stop("Error: Invalid forest object. Is the forest grown in ranger version <0.3.9? Try to predict with the same version the forest was grown.")
@@ -214,6 +226,9 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
     treetype <- 5
   } else if (forest$treetype == "Probability estimation") {
     treetype <- 9
+  } else if (forest$treetype == "Output kernel regression") {
+    treetype <- 10
+    output.representation <- forest$output.representation
   } else {
     stop("Error: Unknown tree type.")
   }
@@ -257,6 +272,12 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   node.stats <- FALSE
   time.interest <- c(0, 0)
   use.time.interest <- FALSE
+  approx.tolerance <- 0
+  if (forest$treetype == "Output kernel regression") {
+    output.representation <- forest$output.representation
+  } else {
+    output.representation <- "NONE"
+  }
   
   ## Use sparse matrix
   if (inherits(x, "dgCMatrix")) {
@@ -281,7 +302,8 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
                       prediction.type, num.random.splits, sparse.x, use.sparse.data,
                       order.snps, oob.error, max.depth, inbag, use.inbag, 
                       regularization.factor, use.regularization.factor, regularization.usedepth, 
-                      node.stats, time.interest, use.time.interest, any.na)
+                      node.stats, time.interest, use.time.interest, any.na, 
+                      approx.tolerance, output.representation)
 
   if (length(result) == 0) {
     stop("User interrupt or internal error.")
@@ -290,142 +312,214 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   ## Prepare results
   result$num.samples <- nrow(x)
   result$treetype <- forest$treetype
-
-  if (predict.all) {
+  
+  if (forest$treetype == "Output kernel regression") {
+    if (type == "terminalNodes") {
+      if (is.list(result$predictions)) {
+        result$predictions <- do.call(rbind, result$predictions)
+      } else if (is.null(dim(result$predictions))) {
+        result$predictions <- matrix(
+          result$predictions,
+          nrow = nrow(x),
+          ncol = num.trees,
+          byrow = TRUE
+        )
+      }
+      
+      rownames(result$predictions) <- rownames(x)
+    } else {
+      num.features <- forest$num.output.features
+      if (is.null(num.features) || num.features < 1) {
+        stop("Invalid OKranger forest: output feature dimension is missing.")
+      }
+      
+      output.names <- forest$output.feature.names
+      if (is.null(output.names)) {
+        output.names <- paste0("feature", seq_len(num.features))
+      }
+      
+      if (predict.all) {
+        prediction.matrix <- result$predictions
+        
+        if (is.list(prediction.matrix)) {
+          prediction.matrix <- do.call(rbind, prediction.matrix)
+        } else {
+          prediction.matrix <- matrix(
+            prediction.matrix,
+            nrow = nrow(x),
+            ncol = num.features * num.trees,
+            byrow = TRUE
+          )
+        }
+        
+        # Restore sample x feature x tree dimensions from the flat output
+        result$predictions <- aperm(
+          array(
+            as.vector(t(prediction.matrix)),
+            dim = c(num.features, num.trees, nrow(x))
+          ),
+          c(3, 1, 2)
+        )
+        
+        dimnames(result$predictions) <- list(rownames(x), output.names, NULL)
+      } else {
+        if (is.list(result$predictions)) {
+          result$predictions <- t(do.call(rbind, result$predictions))
+        } else {
+          result$predictions <- matrix(
+            result$predictions,
+            nrow = nrow(x),
+            ncol = num.features
+          )
+        }
+        
+        dimnames(result$predictions) <- list(rownames(x), output.names)
+      }
+    }
+  } else if (predict.all) {
     if (forest$treetype %in% c("Classification", "Regression")) {
       if (is.list(result$predictions)) {
         result$predictions <- do.call(rbind, result$predictions)
       } else {
-        result$predictions <- array(result$predictions, dim = c(1, length(result$predictions)))
+        result$predictions <- array(
+          result$predictions,
+          dim = c(1, length(result$predictions))
+        )
       }
     } else {
-      if (is.list(result$predictions) & length(result$predictions) >= 1 & is.numeric(result$predictions[[1]])) {
+      if (is.list(result$predictions) &&
+          length(result$predictions) >= 1 &&
+          is.numeric(result$predictions[[1]])) {
         # Fix for single test observation
         result$predictions <- list(result$predictions)
       }
-      result$predictions <- aperm(array(unlist(result$predictions), 
-                                        dim = rev(c(length(result$predictions), 
-                                                    length(result$predictions[[1]]), 
-                                                    length(result$predictions[[1]][[1]])))))
+      
+      result$predictions <- aperm(
+        array(
+          unlist(result$predictions),
+          dim = rev(c(
+            length(result$predictions),
+            length(result$predictions[[1]]),
+            length(result$predictions[[1]][[1]])
+          ))
+        )
+      )
     }
-  } else {
-    if (is.list(result$predictions)) {
-      result$predictions <- do.call(rbind, result$predictions)
-    } 
+  } else if (is.list(result$predictions)) {
+    result$predictions <- do.call(rbind, result$predictions)
+  }
+    if (type == "response") {
+      if (forest$treetype == "Classification" && !is.null(forest$levels)) {
+        if (!predict.all) {
+          result$predictions <- integer.to.factor(result$predictions, forest$levels)
+        }
+      } else if (forest$treetype == "Regression") {
+        ## Empty
+      } else if (forest$treetype == "Survival") {
+        result$unique.death.times <- forest$unique.death.times
+        result$chf <- result$predictions
+        result$predictions <- NULL
+        result$survival <- exp(-result$chf)
+      } else if (forest$treetype == "Probability estimation") {
+        if (predict.all) {
+          ## Set colnames and sort by levels
+          if (!is.null(forest$levels)) {
+            colnames(result$predictions) <- forest$levels[forest$class.values]
+            result$predictions <- result$predictions[, forest$levels[sort(forest$class.values)], , drop = FALSE]
+          }
+        } else {
+          if (is.vector(result$predictions)) {
+            result$predictions <- matrix(result$predictions, nrow = 1)
+          }
+          
+          ## Set colnames and sort by levels
+          if (!is.null(forest$levels)) {
+            colnames(result$predictions) <- forest$levels[forest$class.values]
+            result$predictions <- result$predictions[, forest$levels[sort(forest$class.values)], drop = FALSE]
+          }
+        }
+      }
+    } else if (type == "terminalNodes") {
+      if (is.vector(result$predictions)) {
+        result$predictions <- matrix(result$predictions, nrow = 1)
+      }
+    }
+    
+    ## Compute Jackknife
+    if (type == "se") {
+      ## Aggregated predictions
+      if (length(dim(result$predictions)) > 2) {
+        yhat <- apply(result$predictions, c(1, 2), mean)
+      } else {
+        yhat <- rowMeans(result$predictions)
+      }
+      
+      ## Get inbag counts, keep only observations that are OOB at least once
+      inbag.counts <- simplify2array(inbag.counts) 
+      if (is.vector(inbag.counts)) {
+        inbag.counts <- t(as.matrix(inbag.counts))
+      }
+      inbag.counts <- inbag.counts[rowSums(inbag.counts == 0) > 0, , drop = FALSE] 
+      n <- nrow(inbag.counts)
+      oob <- inbag.counts == 0
+      if (num.trees != object$num.trees) {
+        oob <- oob[, 1:num.trees]
+      }
+      
+      if (all(!oob)) {
+        stop("Error: No OOB observations found, consider increasing num.trees or reducing sample.fraction.")
+      }
+      
+      if (se.method == "jack") {
+        ## Compute Jackknife
+        oob.count <- rowSums(oob)
+        jack.n <- sweep(tcrossprod(result$predictions, oob), 
+                        2, oob.count, "/", check.margin = FALSE)
+        if (is.vector(jack.n)) {
+          jack.n <- t(as.matrix(jack.n))
+        }
+        if (any(oob.count == 0)) {
+          n <- sum(oob.count > 0)
+          jack.n <- jack.n[, oob.count > 0]
+        } 
+        jack <- (n - 1) / n * rowSums((jack.n - yhat)^2)
+        bias <- (exp(1) - 1) * n / result$num.trees^2 * rowSums((result$predictions - yhat)^2)
+        jab <- pmax(jack - bias, 0)
+        result$se <- sqrt(jab)
+      } else if (se.method == "infjack") {
+        if (forest$treetype == "Regression") {
+          infjack <- rInfJack(pred = result$predictions, inbag = inbag.counts, used.trees = 1:num.trees)
+          result$se <- sqrt(infjack$var.hat)
+        } else if (forest$treetype == "Probability estimation") {
+          infjack <- apply(result$predictions, 2, function(x) {
+            rInfJack(x, inbag.counts)$var.hat
+          })
+          result$se <- sqrt(infjack)
+        } 
+      } else {
+        stop("Error: Unknown standard error method (se.method).")
+      }
+      
+      ## Response as predictions
+      result$predictions <- yhat
+      
+      if (forest$treetype == "Probability estimation") {
+        ## Set colnames and sort by levels
+        colnames(result$predictions) <- forest$levels[forest$class.values]
+        result$predictions <- result$predictions[, forest$levels, drop = FALSE]
+        
+        if (!is.matrix(result$se)) {
+          result$se <- matrix(result$se, ncol = length(forest$levels))
+        }
+        colnames(result$se) <- forest$levels[forest$class.values]
+        result$se <- result$se[, forest$levels, drop = FALSE]
+      }
+    }
+    
+    class(result) <- "ranger.prediction"
+    return(result)
   }
   
-  if (type == "response") {
-    if (forest$treetype == "Classification" && !is.null(forest$levels)) {
-      if (!predict.all) {
-        result$predictions <- integer.to.factor(result$predictions, forest$levels)
-      }
-    } else if (forest$treetype == "Regression") {
-      ## Empty
-    } else if (forest$treetype == "Survival") {
-      result$unique.death.times <- forest$unique.death.times
-      result$chf <- result$predictions
-      result$predictions <- NULL
-      result$survival <- exp(-result$chf)
-    } else if (forest$treetype == "Probability estimation") {
-      if (predict.all) {
-        ## Set colnames and sort by levels
-        if (!is.null(forest$levels)) {
-          colnames(result$predictions) <- forest$levels[forest$class.values]
-          result$predictions <- result$predictions[, forest$levels[sort(forest$class.values)], , drop = FALSE]
-        }
-      } else {
-        if (is.vector(result$predictions)) {
-          result$predictions <- matrix(result$predictions, nrow = 1)
-        }
-        
-        ## Set colnames and sort by levels
-        if (!is.null(forest$levels)) {
-          colnames(result$predictions) <- forest$levels[forest$class.values]
-          result$predictions <- result$predictions[, forest$levels[sort(forest$class.values)], drop = FALSE]
-        }
-      }
-    }
-  } else if (type == "terminalNodes") {
-    if (is.vector(result$predictions)) {
-      result$predictions <- matrix(result$predictions, nrow = 1)
-    }
-  }
-
-  ## Compute Jackknife
-  if (type == "se") {
-    ## Aggregated predictions
-    if (length(dim(result$predictions)) > 2) {
-      yhat <- apply(result$predictions, c(1, 2), mean)
-    } else {
-      yhat <- rowMeans(result$predictions)
-    }
-
-    ## Get inbag counts, keep only observations that are OOB at least once
-    inbag.counts <- simplify2array(inbag.counts) 
-    if (is.vector(inbag.counts)) {
-      inbag.counts <- t(as.matrix(inbag.counts))
-    }
-    inbag.counts <- inbag.counts[rowSums(inbag.counts == 0) > 0, , drop = FALSE] 
-    n <- nrow(inbag.counts)
-    oob <- inbag.counts == 0
-    if (num.trees != object$num.trees) {
-      oob <- oob[, 1:num.trees]
-    }
-    
-    if (all(!oob)) {
-      stop("Error: No OOB observations found, consider increasing num.trees or reducing sample.fraction.")
-    }
-
-    if (se.method == "jack") {
-      ## Compute Jackknife
-      oob.count <- rowSums(oob)
-      jack.n <- sweep(tcrossprod(result$predictions, oob), 
-                      2, oob.count, "/", check.margin = FALSE)
-      if (is.vector(jack.n)) {
-        jack.n <- t(as.matrix(jack.n))
-      }
-      if (any(oob.count == 0)) {
-        n <- sum(oob.count > 0)
-        jack.n <- jack.n[, oob.count > 0]
-      } 
-      jack <- (n - 1) / n * rowSums((jack.n - yhat)^2)
-      bias <- (exp(1) - 1) * n / result$num.trees^2 * rowSums((result$predictions - yhat)^2)
-      jab <- pmax(jack - bias, 0)
-      result$se <- sqrt(jab)
-    } else if (se.method == "infjack") {
-      if (forest$treetype == "Regression") {
-        infjack <- rInfJack(pred = result$predictions, inbag = inbag.counts, used.trees = 1:num.trees)
-        result$se <- sqrt(infjack$var.hat)
-      } else if (forest$treetype == "Probability estimation") {
-        infjack <- apply(result$predictions, 2, function(x) {
-          rInfJack(x, inbag.counts)$var.hat
-        })
-        result$se <- sqrt(infjack)
-      } 
-    } else {
-      stop("Error: Unknown standard error method (se.method).")
-    }
-    
-    ## Response as predictions
-    result$predictions <- yhat
-    
-    if (forest$treetype == "Probability estimation") {
-      ## Set colnames and sort by levels
-      colnames(result$predictions) <- forest$levels[forest$class.values]
-      result$predictions <- result$predictions[, forest$levels, drop = FALSE]
-      
-      if (!is.matrix(result$se)) {
-        result$se <- matrix(result$se, ncol = length(forest$levels))
-      }
-      colnames(result$se) <- forest$levels[forest$class.values]
-      result$se <- result$se[, forest$levels, drop = FALSE]
-    }
-  }
-
-  class(result) <- "ranger.prediction"
-  return(result)
-}
-
 ##' Prediction with new data and a saved forest from Ranger.
 ##' 
 ##' For \code{type = 'response'} (the default), the predicted classes (classification), predicted numeric values (regression), predicted probabilities (probability estimation) or survival probabilities (survival) are returned. 
@@ -502,6 +596,14 @@ predict.ranger <- function(object, data = NULL, predict.all = FALSE,
                            what = NULL,
                            seed = NULL, num.threads = NULL,
                            verbose = TRUE, ...) {
+  if (identical(object$treetype, "Output kernel regression")) {
+    if (!type %in% c("response", "terminalNodes")) {
+      stop("Output kernel regression supports response and terminal-node predictions only.")
+    }
+    if (identical(object$output.representation, "GRAM") && !identical(type, "terminalNodes")) {
+      stop("Response prediction with 'K' output representation is not supported. Use getForestWeights() to obtain forest weights.")
+    }
+  }
   forest <- object$forest
   if (is.null(forest)) {
     stop("Error: No saved forest in ranger object. Please set write.forest to TRUE when calling ranger.")

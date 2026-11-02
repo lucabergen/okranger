@@ -22,6 +22,8 @@
 
 namespace ranger {
 
+struct ApproxFeatures;
+
 class Tree {
 public:
   Tree();
@@ -41,7 +43,8 @@ public:
       std::vector<double>* case_weights, std::vector<size_t>* manual_inbag, bool keep_inbag,
       std::vector<double>* sample_fraction, double alpha, double minprop, double poisson_tau, bool holdout, uint num_random_splits,
       uint max_depth, std::vector<double>* regularization_factor, bool regularization_usedepth,
-      std::vector<bool>* split_varIDs_used, bool save_node_stats);
+      std::vector<bool>* split_varIDs_used, bool save_node_stats,
+      const ApproxFeatures* approx_features = nullptr);
 
   virtual void allocateMemory() = 0;
 
@@ -220,6 +223,9 @@ protected:
 
   // Pointer to original data
   const Data* data;
+
+  // Pointer to forest-level approximate output features; null for ordinary trees
+  const ApproxFeatures* approx_features = nullptr;
 
   // Regularization
   bool regularization;

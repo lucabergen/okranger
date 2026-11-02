@@ -43,9 +43,11 @@ void Tree::init(const Data* data, uint mtry, size_t num_samples, uint seed, std:
     bool sample_with_replacement, bool memory_saving_splitting, SplitRule splitrule, std::vector<double>* case_weights,
     std::vector<size_t>* manual_inbag, bool keep_inbag, std::vector<double>* sample_fraction, double alpha,
     double minprop, double poisson_tau, bool holdout, uint num_random_splits, uint max_depth, std::vector<double>* regularization_factor,
-    bool regularization_usedepth, std::vector<bool>* split_varIDs_used, bool save_node_stats) {
+    bool regularization_usedepth, std::vector<bool>* split_varIDs_used, bool save_node_stats,
+    const ApproxFeatures* approx_features) {
 
   this->data = data;
+  this->approx_features = approx_features;
   this->mtry = mtry;
   this->num_samples = num_samples;
   this->memory_saving_splitting = memory_saving_splitting;

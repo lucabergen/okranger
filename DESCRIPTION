@@ -21,7 +21,7 @@ Suggests:
     survival,
     testthat
 Encoding: UTF-8
-RoxygenNote: 7.3.3
 URL: https://imbs-hl.github.io/ranger/,
     https://github.com/imbs-hl/ranger
 BugReports: https://github.com/imbs-hl/ranger/issues
+Config/roxygen2/version: 8.1.0

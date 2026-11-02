@@ -25,7 +25,8 @@ enum TreeType {
   TREE_CLASSIFICATION = 1,
   TREE_REGRESSION = 3,
   TREE_SURVIVAL = 5,
-  TREE_PROBABILITY = 9
+  TREE_PROBABILITY = 9,
+  TREE_KERNEL = 10
 };
 
 // Memory modes
@@ -61,13 +62,21 @@ enum SplitRule {
   EXTRATREES = 5,
   BETA = 6,
   HELLINGER = 7,
-  POISSON = 8
+  POISSON = 8,
+  KERNEL = 9
 };
 
 // Prediction type
 enum PredictionType {
   RESPONSE = 1,
   TERMINALNODES = 2
+};
+
+// Output representation for output kernel trees/forests
+enum OutputRepresentation {
+  OUTPUT_REPRESENTATION_NONE = 0,
+  OUTPUT_REPRESENTATION_FEATURES = 1,
+  OUTPUT_REPRESENTATION_GRAM = 2
 };
 
 // Default values

@@ -37,6 +37,7 @@
 #include "ForestRegression.h"
 #include "ForestSurvival.h"
 #include "ForestProbability.h"
+#include "ForestKernel.h"
 #include "Data.h"
 #include "DataChar.h"
 #include "DataRcpp.h"
@@ -62,11 +63,23 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
     bool use_sparse_data, bool order_snps, bool oob_error, uint max_depth, 
     std::vector<std::vector<size_t>>& inbag, bool use_inbag,
     std::vector<double>& regularization_factor, bool use_regularization_factor, bool regularization_usedepth,
-    bool node_stats, std::vector<double>& time_interest, bool use_time_interest, bool any_na) {
+    bool node_stats, std::vector<double>& time_interest, bool use_time_interest, bool any_na,
+    double approx_tolerance = 0, std::string output_representation = "NONE") {
   
   Rcpp::List result;
 
   try {
+
+    // OKranger passes output representation FEATURES or GRAM.
+    // Existing ranger uses the default NONE.
+    OutputRepresentation output_representation_type = OUTPUT_REPRESENTATION_NONE;
+
+    if (output_representation == "FEATURES") {
+      output_representation_type = OUTPUT_REPRESENTATION_FEATURES;
+    } else if (output_representation == "GRAM") {
+      output_representation_type = OUTPUT_REPRESENTATION_GRAM;
+    } 
+
     std::unique_ptr<Forest> forest { };
     std::unique_ptr<Data> data { };
 
@@ -139,6 +152,9 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
     case TREE_REGRESSION:
       forest = std::make_unique<ForestRegression>();
       break;
+    case TREE_KERNEL:
+      forest = std::make_unique<ForestKernel>();
+      break;
     case TREE_SURVIVAL:
       forest = std::make_unique<ForestSurvival>();
       break;
@@ -156,7 +172,8 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
         importance_mode, min_node_size, min_bucket, split_select_weights, always_split_variable_names,
         prediction_mode, sample_with_replacement, unordered_variable_names, save_memory, splitrule, case_weights,
         inbag, predict_all, keep_inbag, sample_fraction, alpha, minprop, poisson_tau, holdout, prediction_type, num_random_splits, 
-        order_snps, max_depth, regularization_factor, regularization_usedepth, node_stats);
+        order_snps, max_depth, regularization_factor, regularization_usedepth, node_stats, 
+        approx_tolerance, output_representation_type);
 
     // Load forest object if in prediction mode
     if (prediction_mode) {
@@ -173,6 +190,11 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
       } else if (treetype == TREE_REGRESSION) {
         auto& temp = dynamic_cast<ForestRegression&>(*forest);
         temp.loadForest(num_trees, child_nodeIDs, split_varIDs, split_values, is_ordered);
+      } else if (treetype == TREE_KERNEL) {
+        std::vector<std::vector<std::vector<double>>> terminal_output_means = loaded_forest["terminal.output.means"];
+        auto& temp = dynamic_cast<ForestKernel&>(*forest);
+        temp.loadForest(num_trees, child_nodeIDs, split_varIDs, split_values, 
+          terminal_output_means, is_ordered);
       } else if (treetype == TREE_SURVIVAL) {
         std::vector<std::vector<std::vector<double>> > chf = loaded_forest["chf"];
         std::vector<double> unique_timepoints = loaded_forest["unique.death.times"];
@@ -249,6 +271,11 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
       result.push_back(forest->getInbagCounts(), "inbag.counts");
     }
 
+    if (treetype == TREE_KERNEL) {
+      const auto& kernel_forest = dynamic_cast<const ForestKernel&>(*forest);
+      result.push_back(kernel_forest.getApproximationRank(), "approximation.rank");
+    }
+
     // Save forest if needed
     if (write_forest) {
       Rcpp::List forest_object;
@@ -283,6 +310,9 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
         auto& temp = dynamic_cast<ForestProbability&>(*forest);
         forest_object.push_back(temp.getClassValues(), "class.values");
         forest_object.push_back(temp.getTerminalClassCounts(), "terminal.class.counts");
+      } else if (treetype == TREE_KERNEL) {
+        auto& temp = dynamic_cast<ForestKernel&>(*forest);
+        forest_object.push_back(temp.getTerminalOutputMeans(), "terminal.output.means");
       } else if (treetype == TREE_SURVIVAL) {
         auto& temp = dynamic_cast<ForestSurvival&>(*forest);
         forest_object.push_back(temp.getChf(), "chf");

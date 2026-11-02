@@ -10,3 +10,6 @@ ranger*.tar.gz
 ranger*.tgz
 revdep/*
 .vscode
+src/RcppExports.cpp
+src/ranger.dll
+R/RcppExports.R

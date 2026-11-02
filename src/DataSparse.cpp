@@ -38,6 +38,7 @@ DataSparse::DataSparse(Eigen::SparseMatrix<double>& x, Rcpp::NumericMatrix& y, s
   this->variable_names = variable_names;
   this->num_rows = num_rows;
   this->num_cols = num_cols;
+  this->num_cols_y = y.ncol();
   this->num_cols_no_snp = num_cols;
   this->any_na = any_na;
 }

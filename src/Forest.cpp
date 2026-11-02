@@ -31,7 +31,8 @@ Forest::Forest() :
         0), prediction_mode(false), memory_mode(MEM_DOUBLE), sample_with_replacement(true), memory_saving_splitting(
         false), splitrule(DEFAULT_SPLITRULE), predict_all(false), keep_inbag(false), sample_fraction( { 1 }), holdout(
         false), prediction_type(DEFAULT_PREDICTIONTYPE), num_random_splits(DEFAULT_NUM_RANDOM_SPLITS), max_depth(
-        DEFAULT_MAXDEPTH), alpha(DEFAULT_ALPHA), minprop(DEFAULT_MINPROP), poisson_tau(DEFAULT_POISSON_TAU), num_threads(DEFAULT_NUM_THREADS), data { }, 
+        DEFAULT_MAXDEPTH), alpha(DEFAULT_ALPHA), minprop(DEFAULT_MINPROP), poisson_tau(DEFAULT_POISSON_TAU), 
+        approx_tolerance(0), output_representation(OUTPUT_REPRESENTATION_NONE), num_threads(DEFAULT_NUM_THREADS), data { }, 
         overall_prediction_error(NAN), importance_mode(DEFAULT_IMPORTANCE_MODE), regularization_usedepth(false), progress(0) {
 }
 
@@ -143,7 +144,7 @@ void Forest::initR(std::unique_ptr<Data> input_data, uint mtry, uint num_trees, 
     std::vector<std::vector<size_t>>& manual_inbag, bool predict_all, bool keep_inbag,
     std::vector<double>& sample_fraction, double alpha, double minprop, double poisson_tau, bool holdout, PredictionType prediction_type,
     uint num_random_splits, bool order_snps, uint max_depth, const std::vector<double>& regularization_factor,
-    bool regularization_usedepth, bool node_stats) {
+    bool regularization_usedepth, bool node_stats, double approx_tolerance, OutputRepresentation output_representation) {
 
   this->verbose_out = verbose_out;
 
@@ -151,7 +152,7 @@ void Forest::initR(std::unique_ptr<Data> input_data, uint mtry, uint num_trees, 
   init(std::move(input_data), mtry, "", num_trees, seed, num_threads, importance_mode, min_node_size, min_bucket,
       prediction_mode, sample_with_replacement, unordered_variable_names, memory_saving_splitting, splitrule,
       predict_all, sample_fraction, alpha, minprop, poisson_tau, holdout, prediction_type, num_random_splits, order_snps, max_depth,
-      regularization_factor, regularization_usedepth, node_stats);
+      regularization_factor, regularization_usedepth, node_stats, approx_tolerance, output_representation);
 
   // Set variables to be always considered for splitting
   if (!always_split_variable_names.empty()) {
@@ -185,7 +186,8 @@ void Forest::init(std::unique_ptr<Data> input_data, uint mtry, std::string outpu
     bool prediction_mode, bool sample_with_replacement, const std::vector<std::string>& unordered_variable_names,
     bool memory_saving_splitting, SplitRule splitrule, bool predict_all, std::vector<double>& sample_fraction,
     double alpha, double minprop, double poisson_tau, bool holdout, PredictionType prediction_type, uint num_random_splits, bool order_snps,
-    uint max_depth, const std::vector<double>& regularization_factor, bool regularization_usedepth, bool node_stats) {
+    uint max_depth, const std::vector<double>& regularization_factor, bool regularization_usedepth, bool node_stats, 
+    double approx_tolerance, OutputRepresentation output_representation) {
 
   // Initialize data with memmode
   this->data = std::move(input_data);
@@ -223,6 +225,8 @@ void Forest::init(std::unique_ptr<Data> input_data, uint mtry, std::string outpu
   this->alpha = alpha;
   this->minprop = minprop;
   this->poisson_tau = poisson_tau;
+  this->approx_tolerance = approx_tolerance;
+  this->output_representation = output_representation;
   this->prediction_type = prediction_type;
   this->num_random_splits = num_random_splits;
   this->max_depth = max_depth;
@@ -450,6 +454,9 @@ void Forest::grow() {
   // Call special grow functions of subclasses. There trees must be created.
   growInternal();
 
+  // Pointer to forest-owned features. Null for ordinary trees.
+  const ApproxFeatures* tree_approx_features = approxFeaturesForTree();
+
   // Init trees, create a seed for each tree, based on main seed
   std::uniform_int_distribution<uint> udist;
   for (size_t i = 0; i < num_trees; ++i) {
@@ -479,7 +486,8 @@ void Forest::grow() {
     trees[i]->init(data.get(), mtry, num_samples, tree_seed, &deterministic_varIDs, tree_split_select_weights,
         importance_mode, &min_node_size, &min_bucket, sample_with_replacement, memory_saving_splitting, splitrule, &case_weights,
         tree_manual_inbag, keep_inbag, &sample_fraction, alpha, minprop, poisson_tau, holdout, num_random_splits, max_depth,
-        &regularization_factor, regularization_usedepth, &split_varIDs_used, save_node_stats);
+        &regularization_factor, regularization_usedepth, &split_varIDs_used, save_node_stats,
+        tree_approx_features);
   }
 
   // Init variable importance

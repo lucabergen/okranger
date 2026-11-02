@@ -85,6 +85,7 @@ bool Data::loadFromFileWhitespace(std::ifstream& input_file, std::string header_
     std::vector<std::string>& dependent_variable_names) {
 
   size_t num_dependent_variables = dependent_variable_names.size();
+  num_cols_y = num_dependent_variables;
   std::vector<size_t> dependent_varIDs;
   dependent_varIDs.resize(num_dependent_variables);
 
@@ -153,6 +154,7 @@ bool Data::loadFromFileOther(std::ifstream& input_file, std::string header_line,
     std::vector<std::string>& dependent_variable_names, char separator) {
 
   size_t num_dependent_variables = dependent_variable_names.size();
+  num_cols_y = num_dependent_variables;
   std::vector<size_t> dependent_varIDs;
   dependent_varIDs.resize(num_dependent_variables);
 
