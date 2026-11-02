@@ -141,9 +141,27 @@ double TreeKernel::kernelScore(const std::vector<double>& sum, size_t n) const {
   return squared_norm / static_cast<double>(n);
 }
 
-double TreeKernel::splitScore(const std::vector<double>& sum_left, const std::vector<double>& sum_right,
-    size_t n_left, size_t n_right) const {
-  return kernelScore(sum_left, n_left) + kernelScore(sum_right, n_right);
+double TreeKernel::splitScore(const std::vector<double>& sum_left,
+    const std::vector<double>& sum_total, size_t n_left, size_t n_right) const {
+  double squared_norm_left = 0.0;
+  double squared_norm_right = 0.0;
+
+  for (size_t feature = 0; feature < sum_left.size(); ++feature) {
+    const double left_value = sum_left[feature];
+    const double right_value = sum_total[feature] - left_value;
+
+    squared_norm_left += left_value * left_value;
+    squared_norm_right += right_value * right_value;
+  }
+
+  const double left_score = n_left == 0
+      ? 0.0
+      : squared_norm_left / static_cast<double>(n_left);
+  const double right_score = n_right == 0
+      ? 0.0
+      : squared_norm_right / static_cast<double>(n_right);
+
+  return left_score + right_score;
 }
 
 bool TreeKernel::findBestSplit(size_t nodeID, std::vector<size_t>& possible_split_varIDs) {
@@ -301,7 +319,6 @@ void TreeKernel::findBestSplitValueSmallQ(size_t nodeID, size_t varID, size_t nu
   }
 
   std::vector<double> sum_left(rank, 0.0);
-  std::vector<double> sum_right(rank, 0.0);
   size_t n_left = 0;
 
   // Iterate over predictor values observed in this node 
@@ -326,11 +343,7 @@ void TreeKernel::findBestSplitValueSmallQ(size_t nodeID, size_t varID, size_t nu
       continue;
     }
 
-    for (size_t feature = 0; feature < rank; ++feature) {
-      sum_right[feature] = sum_total[feature] - sum_left[feature];
-    }
-
-    double candidate_score = splitScore(sum_left, sum_right, n_left, n_right);
+    double candidate_score = splitScore(sum_left, sum_total, n_left, n_right);
     regularize(candidate_score, varID);
 
     if (candidate_score > best_score) {
@@ -392,7 +405,6 @@ void TreeKernel::findBestSplitValueLargeQ(size_t nodeID, size_t varID, size_t nu
   }
 
   std::vector<double> sum_left(rank, 0.0);
-  std::vector<double> sum_right(rank, 0.0);
   size_t n_left = 0;
 
   // Iterate over unique predictor values
@@ -417,11 +429,7 @@ void TreeKernel::findBestSplitValueLargeQ(size_t nodeID, size_t varID, size_t nu
       continue;
     }
 
-    for (size_t feature = 0; feature < rank; ++feature) {
-      sum_right[feature] = sum_total[feature] - sum_left[feature];
-    }
-
-    double candidate_score = splitScore(sum_left, sum_right, n_left, n_right);
+    double candidate_score = splitScore(sum_left, sum_total, n_left, n_right);
     regularize(candidate_score, varID);
 
     if (candidate_score > best_score) {

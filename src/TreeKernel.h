@@ -66,9 +66,8 @@ private:
   // Helper function; computes the projected-feature score of one node
   double kernelScore(const std::vector<double>& sum, size_t n) const;
   // Returns sum of projected-feature scores of left and right child nodes
-  double splitScore(const std::vector<double>& sum_left,
-      const std::vector<double>& sum_right, size_t n_left,
-      size_t n_right) const;
+  double splitScore(const std::vector<double>& sum_left, const std::vector<double>& sum_total, 
+    size_t n_left, size_t n_right) const;
 
   // Returns true when explicit output features are available
   bool storesLeafPredictions() const {

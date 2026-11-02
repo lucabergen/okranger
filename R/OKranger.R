@@ -16,11 +16,11 @@ OKranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
   }
   
   if (is.null(Phi) && is.null(K)) {
-    stop("Either 'Phi' or 'K' must be specified.")
+    stop("Either 'Phi' or 'K' must be provided.")
   }
   
   if (!is.null(Phi) && !is.null(K)) {
-    warning("Both 'Phi' and 'K' were specified; only 'Phi' will be used.")
+    warning("Both 'Phi' and 'K' were provided; only 'Phi' will be used.")
   }
   
   if (!is.numeric(approx.tolerance) || length(approx.tolerance) != 1L ||
@@ -169,7 +169,7 @@ OKranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
   
   if (identical(output.representation, "GRAM") && isTRUE(oob.error)) {
     warning(paste0(
-      "OOB predictions and OOB error are skipped when 'K' is supplied. ",
+      "OOB predictions and OOB error are skipped when 'K' is provided. ",
       "Use getForestWeights() to obtain OOB forest weights."
     ))
   }
