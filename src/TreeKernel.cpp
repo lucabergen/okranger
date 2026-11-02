@@ -253,18 +253,7 @@ bool TreeKernel::findBestSplit(size_t nodeID, std::vector<size_t>& possible_spli
 void TreeKernel::findBestSplitValueSmallQ(size_t nodeID, size_t varID, size_t num_samples_node,
   const std::vector<double>& sum_total, double& best_value, size_t& best_varID, double& best_score) {
 
-  if (!data->isOrderedVariable(varID)) {
-    throw std::runtime_error("OKranger currently supports numeric ordered predictors only.");
-  }
-
   const size_t rank = approx_features->rank;
-
-  for (size_t pos = start_pos[nodeID]; pos < end_pos[nodeID]; ++pos) {
-    const size_t sample_id = sampleIDs[pos];
-    if (!std::isfinite(data->get_x(sample_id, varID))) {
-      throw std::runtime_error("OKranger currently requires finite predictors without missing values.");
-    }
-  }
 
   std::vector<double> possible_split_values;
   data->getAllValues(possible_split_values, sampleIDs, varID, start_pos[nodeID], end_pos[nodeID]);
@@ -364,10 +353,6 @@ void TreeKernel::findBestSplitValueSmallQ(size_t nodeID, size_t varID, size_t nu
 void TreeKernel::findBestSplitValueLargeQ(size_t nodeID, size_t varID, size_t num_samples_node, 
   const std::vector<double>& sum_total, double& best_value, size_t& best_varID, double& best_score) {
 
-  if (!data->isOrderedVariable(varID)) {
-    throw std::runtime_error("OKranger currently supports numeric ordered predictors only.");
-  }
-
   const size_t rank = approx_features->rank;
   const size_t num_unique = data->getNumUniqueDataValues(varID);
 
@@ -386,10 +371,6 @@ void TreeKernel::findBestSplitValueLargeQ(size_t nodeID, size_t varID, size_t nu
   for (size_t pos = start_pos[nodeID]; pos < end_pos[nodeID]; ++pos) {
     const size_t sample_id = sampleIDs[pos];
     const double x_value = data->get_x(sample_id, varID);
-
-    if (!std::isfinite(x_value)) {
-      throw std::runtime_error("OKranger currently requires finite predictors without missing values.");
-    }
 
     const size_t index = data->getIndex(sample_id, varID);
     if (index >= num_unique) {

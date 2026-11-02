@@ -48,15 +48,18 @@ OKranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
     stop("Each column of 'x' must be a one-dimensional, non-complex vector.")
   }
   
-  if (anyNA(x)) {
-    stop("'x' must not contain NA or NaN values.")
-  }
+  bad_x <- vapply(x, function(col) {
+      if (is.numeric(col) || is.logical(col)) {
+        any(!is.finite(col))
+      } else {
+        anyNA(col)
+      }
+    }, logical(1))
   
-  if (any(vapply(
-    x,
-    function(col) {(is.numeric(col) || is.logical(col)) && any(!is.finite(col))},
-    logical(1)
-  ))) {
+  if (any(bad_x)) {
+    if (anyNA(x)) {
+      stop("'x' must not contain NA or NaN values.")
+    }
     stop("'x' must not contain non-finite numeric values.")
   }
   
@@ -69,16 +72,12 @@ OKranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
       stop("'Phi' must have nrow(x) rows and at least one column.")
     }
     
-    if (anyNA(Phi)) {
-      stop("'Phi' must not contain NA or NaN values.")
-    }
-    
     if (any(!is.finite(Phi))) {
-      stop("'Phi' must contain only finite values.")
+      stop("'Phi' must not contain missing or infinite values.")
     }
   }
   
-  if (!is.null(K)) {
+  if (is.null(Phi) && !is.null(K)) {
     if (!is.matrix(K) || !is.numeric(K) || is.complex(K)) {
       stop("'K' must be a numeric matrix.")
     }
@@ -87,12 +86,8 @@ OKranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
       stop("'K' must be an n-by-n matrix, where n equals nrow(x).")
     }
     
-    if (anyNA(K)) {
-      stop("'K' must not contain NA or NaN values.")
-    }
-    
     if (any(!is.finite(K))) {
-      stop("'K' must contain only finite values.")
+      stop("'K' must not contain missing or infinite values.")
     }
 
     if (!isSymmetric(K)) {
