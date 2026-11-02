@@ -225,7 +225,7 @@ test_that("Phi predictions equal probability forest predictions", {
   
 })
 
-test_that("OKranger terminal nodes equal regression forest terminal nodes", {
+test_that("Phi terminal nodes equal regression forest terminal nodes", {
   
   n <- 100
   x <- matrix(rnorm(n*7,0,1),ncol = 7)
@@ -242,18 +242,11 @@ test_that("OKranger terminal nodes equal regression forest terminal nodes", {
                       approx.tolerance = 1e-10,
                       seed = 123)
   
-  fit_K <- OKranger(K = K, x = x, 
-                    approx.tolerance = 1e-10,
-                    seed = 123)
-  
   # Prediction on training data
   pred_y <- predict(fit_y, x, type = "terminalNodes")
   pred_Phi <- predict(fit_Phi, x, type = "terminalNodes")
-  pred_K <- predict(fit_K, x, type = "terminalNodes")
-  
+
   expect_equal(pred_y$predictions, pred_Phi$predictions,
-               tolerance = 1e-10)
-  expect_equal(pred_y$predictions, pred_K$predictions,
                tolerance = 1e-10)
   
   # Prediction on new data
@@ -263,15 +256,12 @@ test_that("OKranger terminal nodes equal regression forest terminal nodes", {
   
   pred_y_new <- predict(fit_y, x_new, type = "terminalNodes")
   pred_Phi_new <- predict(fit_Phi, x_new, type = "terminalNodes")
-  pred_K_new <- predict(fit_K, x_new, type = "terminalNodes")
-  
+
   expect_equal(pred_y_new$predictions, pred_Phi_new$predictions,
-               tolerance = 1e-10)
-  expect_equal(pred_y_new$predictions, pred_K_new$predictions,
                tolerance = 1e-10)
 })
 
-test_that("OKranger terminal nodes equal probability forest terminal nodes", {
+test_that("Phi terminal nodes equal probability forest terminal nodes", {
   
   n <- 100
   x <- matrix(rnorm(n * 7, 0, 1), ncol = 7)
@@ -294,6 +284,7 @@ test_that("OKranger terminal nodes equal probability forest terminal nodes", {
                       mtry = 7, min.node.size = 3, min.bucket = 1, 
                       seed = 123)
   
+  # Prediction on training data
   pred_prob <- predict(fit_prob, x)
   pred_Phi <- predict(fit_Phi, x)
   
@@ -301,12 +292,13 @@ test_that("OKranger terminal nodes equal probability forest terminal nodes", {
   x_new <- matrix(rnorm(n_new*7,0,1),ncol = 7)
   x_new <- as.data.frame(x_new)
   
-  pred_prob_new <- predict(fit_prob, x_new)
-  pred_Phi_new <- predict(fit_Phi, x_new)
-  
   expect_equal(pred_prob$predictions[, labels, drop = FALSE], 
                pred_Phi$predictions[, labels, drop = FALSE],
                tolerance = 1e-10)
+  
+  # Prediction on new data
+  pred_prob_new <- predict(fit_prob, x_new)
+  pred_Phi_new <- predict(fit_Phi, x_new)
   
   expect_equal(pred_prob_new$predictions[, labels, drop = FALSE], 
                pred_Phi_new$predictions[, labels, drop = FALSE],
