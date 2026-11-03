@@ -1,11 +1,35 @@
-
-getForestWeights <- function(
-    object,
-    training.data, # Needed for predict(type = "terminalNodes"); needs to be passed in the same row-order as when used to train object
-    new.data = NULL, # Evaluation points; NULL uses training data
-    oob = FALSE
-) {
-  
+##' Compute forest weights
+##'
+##' Compute the forest weight matrix for query observations and the training
+##' observations of a fitted ranger forest. For query observations
+##' \eqn{x_1, \ldots, x_m}, the function returns an \eqn{m \times n} matrix
+##' \eqn{W}, where \eqn{W_{ij} = w_j(x_i)} is the weight assigned to training
+##' observation \eqn{j} for query observation \eqn{i}. Rows correspond to
+##' query observations and columns to training observations. The returned
+##' matrix is sparse by default.
+##'
+##' If the training outputs are represented by an explicit feature matrix
+##' \eqn{\Phi \in \mathbb{R}^{n \times d}}, the predicted feature vectors are
+##' \eqn{\hat{\Phi} = W \Phi}.
+##'
+##' With \code{oob = TRUE}, weights are computed using only trees in which
+##' each query observation was out of bag. This mode is restricted to the
+##' training observations.
+##'
+##' @param object A fitted object of class \code{ranger}. It must contain a
+##'   saved forest and in-bag counts (fit with \code{write.forest = TRUE} and
+##'   \code{keep.inbag = TRUE}).
+##' @param training.data The predictor data used to train \code{object}, in the
+##'   same row order.
+##' @param new.data Optional query predictor data. If \code{NULL}, the training
+##'   observations are used as queries. Must be \code{NULL} when \code{oob = TRUE}.
+##' @param oob If \code{TRUE}, compute OOB weights for the training
+##'   observations. Each training row must have at least one OOB tree.
+##' @return A sparse matrix with one row per query observation and one column
+##'   per training observation. The matrix is a \code{dgCMatrix}.
+##' @export
+getForestWeights <- function(object, training.data, 
+                             new.data = NULL, oob = FALSE) {
   if (!inherits(object, "ranger")) {
     stop("`object` must be a fitted ranger model.")
   }
@@ -18,12 +42,10 @@ getForestWeights <- function(
     stop("`oob` must be TRUE or FALSE.")
   }
   
-  # OOB weights are defined here only for the training observations.
-  # With no training_indices, their original row order is required.
   if (oob && !is.null(new.data)) {
     stop(
-      "For OOB weights, omit `new.data`; the query points are ",
-      "`training.data` in its original training row order."
+      "For OOB weights, omit `new.data`; the query points are `training.data` ",
+      "in its original training row order."
     )
   }
   
@@ -38,11 +60,11 @@ getForestWeights <- function(
   
   n.train <- object$num.samples
   n.trees <- object$num.trees
+  n.new <- NROW(new.data)
   
   if (is.null(n.train) || length(n.train) != 1L || is.na(n.train)) {
     stop("Could not determine the number of training observations from `object`.")
   }
-  
   if (NROW(training.data) != n.train) {
     stop(
       "`training.data` must contain all observations used to train `object`, ",
@@ -54,24 +76,17 @@ getForestWeights <- function(
       length(object$inbag.counts) != n.trees) {
     stop("`object$inbag.counts` must contain one count vector per tree.")
   }
-  
   if (any(lengths(object$inbag.counts) != n.train)) {
     stop("Each inbag-count vector must have one entry per training observation.")
   }
   
-  no.new.data <- is.null(new.data)
-  
-  if (no.new.data == TRUE) {
-    new.data <- training.data
-  } 
-  
-  # inbag.counts has one column per tree, one row per training observation
+  # One column per tree, one row per training observation.
   inbag.counts <- do.call(cbind, object$inbag.counts)
+  storage.mode(inbag.counts) <- "double"
   
-  # Both leafIDs have one column per tree, one row per observation
   train.leafIDs <- predict(
-    object = object, 
-    data = training.data, 
+    object = object,
+    data = training.data,
     type = "terminalNodes"
   )$predictions
   
@@ -85,48 +100,45 @@ getForestWeights <- function(
     )$predictions
   }
   
-  n.new <- nrow(new.data)
-  n.train <- nrow(training.data)
-  num.trees <- ncol(train.leafIDs)
-  
-  weights <- matrix(0, nrow = n.new, ncol = n.train)
-  trees.used <- integer(n.new)
-  
-  for (t in seq_len(num.trees)) {
-    
-    # Save count of each training observation in bootstrap sample of tree t
-    boot.counts <- inbag.counts[, t]
-    
-    for (i in seq_len(n.new)) {
-      
-      # In OOB mode, keep only trees where query i was not in-bag.
-      if (oob && boot.counts[i] > 0) {
-        next
+  as.leaf.matrix <- function(x, n.rows, n.cols, arg) {
+    if (is.null(dim(x))) {
+      if (length(x) != n.rows * n.cols) {
+        stop("Unexpected number of terminal-node IDs in `", arg, "`.")
       }
-      
-      # is TRUE for each training obs. that is in the same leaf as new obs. i
-      same.leaf <- train.leafIDs[, t] == new.leafIDs[i, t]
-      # Multiply by the number of times the training obs. were in the bootstrap sample
-      leaf.weights <- same.leaf * boot.counts
-      leaf.mass <- sum(leaf.weights)
-      
-      if (leaf.mass > 0) {
-        weights[i, ] <- weights[i, ] + leaf.weights / leaf.mass
-        trees.used[i] <- trees.used[i] + 1L
-      }
+      x <- matrix(x, nrow = n.rows, ncol = n.cols)
     }
+    
+    if (length(dim(x)) != 2L ||
+        nrow(x) != n.rows ||
+        ncol(x) != n.cols) {
+      stop("Unexpected dimensions for terminal-node IDs in `", arg, "`.")
+    }
+    
+    storage.mode(x) <- "double"
+    x
   }
   
-  # Average tree-specific normalized weights. A row with no usable OOB trees
-  # is undefined.
-  for (i in seq_len(n.new)) {
-    if (trees.used[i] > 0L) {
-      weights[i, ] <- weights[i, ] / trees.used[i]
-    } else {
-      weights[i, ] <- NA_real_
-    }
-  }
+  train.leafIDs <- as.leaf.matrix(
+    train.leafIDs, n.train, n.trees, "training.data"
+  )
+  new.leafIDs <- as.leaf.matrix(
+    new.leafIDs, n.new, n.trees, "new.data"
+  )
+  
+  result <- forestWeightsCpp(
+    train_leaf_ids = train.leafIDs,
+    query_leaf_ids = new.leafIDs,
+    inbag_counts = inbag.counts,
+    oob = oob
+  )
+  
+  weights <- Matrix::sparseMatrix(
+    i = result$i,
+    j = result$j,
+    x = result$x,
+    dims = c(n.new, n.train),
+    dimnames = list(rownames(new.data), rownames(training.data))
+  )
   
   weights
 }
-  

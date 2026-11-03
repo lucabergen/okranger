@@ -305,3 +305,43 @@ test_that("Phi terminal nodes equal probability forest terminal nodes", {
                tolerance = 1e-10)
   
 })
+
+test_that("Phi predictions equal weight predictions", {
+  
+  n <- 100
+  x <- matrix(rnorm(n*7,0,1),ncol = 7)
+  y <- 0.6*x[,1] - 0.2*x[,2] + 0.3*x[,4] + 0.9*x[,5] - 0.5*x[,6] + rnorm(n)
+  x <- as.data.frame(x)
+  Phi <- matrix(y, ncol = 1)
+  
+  fit <- OKranger(Phi = Phi, x = x, approx.tolerance = 1e-16,
+                  write.forest = TRUE, keep.inbag = TRUE,
+                  oob.error = TRUE, seed = 123)
+  
+  # OOB predictions
+  W_oob <- getForestWeights(fit, training.data = x, oob = TRUE)
+  pred_weight_oob <- unname(as.matrix(W_oob %*% Phi))
+  
+  expect_equal(fit$predictions, pred_weight_oob,
+               tolerance = 1e-10)
+  
+  # (in-bag) predictions on training data
+  W_train <- getForestWeights(fit, training.data = x, oob = FALSE)
+  pred_weight_train <- unname(as.matrix(W_train %*% Phi))
+  pred_train <- unname(predict(fit, data = x)$predictions)
+  expect_equal(pred_train, pred_weight_train,
+               tolerance = 1e-10)
+  
+  # predictions on new data
+  n_new <- 150
+  x_new <- matrix(rnorm(n_new*7,0,1),ncol = 7)
+  x_new <- as.data.frame(x_new)
+  
+  W_new <- getForestWeights(fit, training.data = x, 
+                            new.data = x_new, oob = FALSE)
+  pred_weight_new <- unname(as.matrix(W_new %*% Phi))
+  pred_new <- unname(predict(fit, data = x_new)$predictions)
+  
+  expect_equal(pred_weight_new, pred_new,
+               tolerance = 1e-10)
+})

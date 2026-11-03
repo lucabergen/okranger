@@ -12,6 +12,20 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// forestWeightsCpp
+Rcpp::List forestWeightsCpp(Rcpp::NumericMatrix train_leaf_ids, Rcpp::NumericMatrix query_leaf_ids, Rcpp::NumericMatrix inbag_counts, bool oob);
+RcppExport SEXP _ranger_forestWeightsCpp(SEXP train_leaf_idsSEXP, SEXP query_leaf_idsSEXP, SEXP inbag_countsSEXP, SEXP oobSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type train_leaf_ids(train_leaf_idsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type query_leaf_ids(query_leaf_idsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type inbag_counts(inbag_countsSEXP);
+    Rcpp::traits::input_parameter< bool >::type oob(oobSEXP);
+    rcpp_result_gen = Rcpp::wrap(forestWeightsCpp(train_leaf_ids, query_leaf_ids, inbag_counts, oob));
+    return rcpp_result_gen;
+END_RCPP
+}
 // rangerCpp
 Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericMatrix& input_y, std::vector<std::string> variable_names, uint mtry, uint num_trees, bool verbose, uint seed, uint num_threads, bool write_forest, uint importance_mode_r, std::vector<uint>& min_node_size, std::vector<uint>& min_bucket, std::vector<std::vector<double>>& split_select_weights, bool use_split_select_weights, std::vector<std::string>& always_split_variable_names, bool use_always_split_variable_names, bool prediction_mode, Rcpp::List loaded_forest, Rcpp::RawMatrix snp_data, bool sample_with_replacement, bool probability, std::vector<std::string>& unordered_variable_names, bool use_unordered_variable_names, bool save_memory, uint splitrule_r, std::vector<double>& case_weights, bool use_case_weights, std::vector<double>& class_weights, bool predict_all, bool keep_inbag, std::vector<double>& sample_fraction, double alpha, double minprop, double poisson_tau, bool holdout, uint prediction_type_r, uint num_random_splits, Eigen::SparseMatrix<double>& sparse_x, bool use_sparse_data, bool order_snps, bool oob_error, uint max_depth, std::vector<std::vector<size_t>>& inbag, bool use_inbag, std::vector<double>& regularization_factor, bool use_regularization_factor, bool regularization_usedepth, bool node_stats, std::vector<double>& time_interest, bool use_time_interest, bool any_na, double approx_tolerance, std::string output_representation);
 RcppExport SEXP _ranger_rangerCpp(SEXP treetypeSEXP, SEXP input_xSEXP, SEXP input_ySEXP, SEXP variable_namesSEXP, SEXP mtrySEXP, SEXP num_treesSEXP, SEXP verboseSEXP, SEXP seedSEXP, SEXP num_threadsSEXP, SEXP write_forestSEXP, SEXP importance_mode_rSEXP, SEXP min_node_sizeSEXP, SEXP min_bucketSEXP, SEXP split_select_weightsSEXP, SEXP use_split_select_weightsSEXP, SEXP always_split_variable_namesSEXP, SEXP use_always_split_variable_namesSEXP, SEXP prediction_modeSEXP, SEXP loaded_forestSEXP, SEXP snp_dataSEXP, SEXP sample_with_replacementSEXP, SEXP probabilitySEXP, SEXP unordered_variable_namesSEXP, SEXP use_unordered_variable_namesSEXP, SEXP save_memorySEXP, SEXP splitrule_rSEXP, SEXP case_weightsSEXP, SEXP use_case_weightsSEXP, SEXP class_weightsSEXP, SEXP predict_allSEXP, SEXP keep_inbagSEXP, SEXP sample_fractionSEXP, SEXP alphaSEXP, SEXP minpropSEXP, SEXP poisson_tauSEXP, SEXP holdoutSEXP, SEXP prediction_type_rSEXP, SEXP num_random_splitsSEXP, SEXP sparse_xSEXP, SEXP use_sparse_dataSEXP, SEXP order_snpsSEXP, SEXP oob_errorSEXP, SEXP max_depthSEXP, SEXP inbagSEXP, SEXP use_inbagSEXP, SEXP regularization_factorSEXP, SEXP use_regularization_factorSEXP, SEXP regularization_usedepthSEXP, SEXP node_statsSEXP, SEXP time_interestSEXP, SEXP use_time_interestSEXP, SEXP any_naSEXP, SEXP approx_toleranceSEXP, SEXP output_representationSEXP) {
@@ -151,6 +165,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_ranger_forestWeightsCpp", (DL_FUNC) &_ranger_forestWeightsCpp, 4},
     {"_ranger_rangerCpp", (DL_FUNC) &_ranger_rangerCpp, 54},
     {"_ranger_numSmaller", (DL_FUNC) &_ranger_numSmaller, 2},
     {"_ranger_randomObsNode", (DL_FUNC) &_ranger_randomObsNode, 3},
