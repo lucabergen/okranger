@@ -107,7 +107,7 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
   
   if (identical(forest$treetype, "Output kernel regression")) {
     if (!(forest$output.representation %in% c("FEATURES", "GRAM"))) {
-      stop("Invalid OKranger forest: output representation is missing or invalid.")
+      stop("Invalid okranger forest: output representation is missing or invalid.")
     }
     if (!type %in% c("response", "terminalNodes")) {
       stop("Output kernel regression supports response and terminal-node predictions only.")
@@ -330,7 +330,7 @@ predict.ranger.forest <- function(object, data, predict.all = FALSE,
     } else {
       num.features <- forest$num.output.features
       if (is.null(num.features) || num.features < 1) {
-        stop("Invalid OKranger forest: output feature dimension is missing.")
+        stop("Invalid okranger forest: output feature dimension is missing.")
       }
       
       output.names <- forest$output.feature.names

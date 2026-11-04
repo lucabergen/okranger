@@ -1,6 +1,101 @@
-
-##' @export
-OKranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500, 
+#' Fit an Output Kernel Random Forest
+#'
+#' Trains an Output Kernel Random Forest using predictor data and either an
+#' output feature matrix or a Gram matrix.
+#'
+#' @details
+#' If possible, provide a feature matrix \code{Phi}. This allows out-of-bag 
+#' (OOB) predictions and OOB error to be computed when \code{oob.error = TRUE}. 
+#' If only a Gram matrix \code{K} is provided, OOB predictions and OOB error are 
+#' skipped; use \code{getForestWeights()} to obtain forest weights. Set 
+#' \code{keep.inbag = TRUE} if OOB forest weights are needed.
+#'
+#' In \code{Phi}, rows represent observations and columns represent output
+#' features. \code{K} is a square Gram matrix whose rows and columns represent
+#' observations. If both \code{Phi} and \code{K} are supplied, only
+#' \code{Phi} is used and a warning is issued.
+#'
+#' The predictor data must be a non-empty data frame without missing or
+#' non-finite values. Character predictors are converted to factors.
+#' Unordered factors are currently supported only with
+#' \code{respect.unordered.factors = NULL}, \code{FALSE}, or \code{"ignore"}.
+#'
+#' @param Phi Optional numeric matrix of output features, with one row per
+#'   observation and one column per output feature.
+#' @param K Optional numeric Gram matrix with one row and column per
+#'   observation in \code{x}. Used only when \code{Phi} is \code{NULL}.
+#'   Symmetry is checked, but positive semidefiniteness (PSD) is not.
+#' @param x Non-empty data frame of predictor variables.
+#' @param approx.tolerance Positive scalar tolerance specifying the allowed
+#'   deviation of the approximated score from the true score.
+#' @param num.trees Number of trees to grow.
+#' @param mtry Number of candidate predictors considered at each split.
+#'   Defaults to the floor of the square root of the number of predictors,
+#'   with a minimum of 1.
+#' @param write.forest If \code{TRUE}, retain the fitted forest in the result.
+#' @param min.node.size Minimum number of observations required in a node for
+#'   attempting a split. Defaults to 5.
+#' @param min.bucket Minimum number of observations required in each child node
+#'   created by a split. Defaults to 1.
+#' @param max.depth Maximum tree depth. Defaults to 0, which imposes no
+#'   maximum depth.
+#' @param replace If \code{TRUE}, sample observations with replacement.
+#' @param sample.fraction Fraction of observations to sample for each tree.
+#'   Defaults to \code{1} when sampling with replacement and \code{0.632}
+#'   otherwise.
+#' @param split.select.weights Optional numeric vector of split-selection
+#'   weights, with one value per predictor, or a list with one vector per tree.
+#' @param always.split.variables Optional names of predictors that should
+#'   always be considered for splitting.
+#' @param respect.unordered.factors How to handle unordered factors. Defaults
+#'   to \code{"ignore"}; currently only \code{"ignore"} is supported.
+#' @param keep.inbag If \code{TRUE}, retain in-bag counts for each tree.
+#' @param oob.error If \code{TRUE} and \code{Phi} is supplied, compute OOB
+#'   predictions and OOB error. These are skipped when only \code{K} is
+#'   supplied.
+#' @param num.threads Number of threads to use. Defaults to the value of
+#'   \code{R_RANGER_NUM_THREADS} if set; otherwise to the
+#'   \code{ranger.num.threads} option, then the \code{Ncpus} option, and
+#'   finally to 2.
+#' @param verbose If \code{TRUE}, print status information during fitting.
+#' @param node.stats If \code{TRUE}, calculate and retain node statistics.
+#' @param seed Random seed. If \code{NULL}, a seed is generated.
+#'
+#' @return An object of class \code{"ranger"} containing the fitted model
+#'   information. When \code{write.forest = TRUE}, the fitted forest is
+#'   included. If \code{Phi} is supplied and \code{oob.error = TRUE}, the
+#'   result also contains OOB predictions and the OOB prediction error.
+#'
+#' @examples
+#' n <- 30
+#' x <- data.frame(
+#'   x1 = seq_len(n),
+#'   x2 = sin(seq_len(n) / 4)
+#' )
+#'
+#' # Rows are observations; columns are output features.
+#' Phi <- cbind(
+#'   feature1 = sin(seq_len(n) / 5),
+#'   feature2 = cos(seq_len(n) / 5)
+#' )
+#'
+#' # Recommended: fit using the output feature matrix.
+#' fit_phi <- okranger(
+#'   Phi = Phi, x = x, approx.tolerance = 1e-3,
+#'   num.trees = 20, num.threads = 1, verbose = FALSE, seed = 123
+#' )
+#'
+#' # Alternative: fit using the corresponding Gram matrix.
+#' K <- tcrossprod(Phi)
+#' fit_K <- okranger(
+#'   K = K, x = x, approx.tolerance = 1e-3,
+#'   num.trees = 20, num.threads = 1, verbose = FALSE,
+#'   oob.error = FALSE, seed = 123
+#' )
+#' 
+#' @seealso \code{\link{ranger}}
+#' @export
+okranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500, 
                      mtry = NULL, write.forest = TRUE, min.node.size = NULL, 
                      min.bucket = NULL, max.depth = NULL, replace = TRUE, 
                      sample.fraction = ifelse(replace, 1, 0.632), 
@@ -101,7 +196,7 @@ OKranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
              length(respect.unordered.factors) == 1L &&
              !is.na(respect.unordered.factors)) {
     if (respect.unordered.factors) {
-      stop("'respect.unordered.factors = TRUE' ('order') is not supported by OKranger.")
+      stop("'respect.unordered.factors = TRUE' ('order') is not supported by okranger.")
     }
     
     respect <- "ignore"
@@ -109,12 +204,12 @@ OKranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
              length(respect.unordered.factors) == 1L &&
              !is.na(respect.unordered.factors)) {
     if (respect.unordered.factors == "order") {
-      stop("'respect.unordered.factors = 'order'' is not supported by OKranger.")
+      stop("'respect.unordered.factors = 'order'' is not supported by okranger.")
     }
     
     # TODO: Add support for missing values
     if (respect.unordered.factors == "partition") {
-      stop("'respect.unordered.factors = 'partition'' is currently not supported by OKranger.")
+      stop("'respect.unordered.factors = 'partition'' is currently not supported by okranger.")
     }
     
     if (respect.unordered.factors != "ignore") {
@@ -172,7 +267,7 @@ OKranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
   compute.oob.error <- isTRUE(oob.error) && 
     identical(output.representation, "FEATURES")
   
-  # OKranger supports data.frame predictors only, so use the dense matrix
+  # okranger supports data.frame predictors only, so use the dense matrix
   sparse.x <- Matrix::Matrix(matrix(c(0, 0)))
   use.sparse.data <- FALSE
   

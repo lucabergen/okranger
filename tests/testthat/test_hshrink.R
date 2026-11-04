@@ -1,6 +1,6 @@
 ## Tests for hierarchical shrinkage
 
-library(ranger)
+library(okranger)
 context("ranger_hshrink")
 
 ## Tests

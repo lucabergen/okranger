@@ -1,18 +1,15 @@
-Package: ranger
+Package: okranger
 Type: Package
-Title: A Fast Implementation of Random Forests
-Version: 0.18.0
-Date: 2026-01-15
+Title: Random Forests for RKHS-Valued Responses
+Version: 0.1.0
 Authors@R: c(
-    person("Marvin N.", "Wright", email = "cran@wrig.de", role = c("aut", "cre")),
-    person("Stefan", "Wager", role = "ctb"),
-    person("Philipp", "Probst", role = "ctb"))
-Description: A fast implementation of Random Forests, particularly suited for high
-          dimensional data. Ensembles of classification, regression, survival and
-          probability prediction trees are supported. Data from genome-wide association
-          studies can be analyzed efficiently. In addition to data frames, datasets of
-          class 'gwaa.data' (R package 'GenABEL') and 'dgCMatrix' (R package 'Matrix') 
-          can be directly analyzed.
+    person("Luca", "Bergen", email = "bergen@leibniz-bips.de", role = c("aut", "cre")))
+Description: Implements output kernel random forests (OKRFs) for regression with
+    responses taking values in a reproducing kernel Hilbert space (RKHS). 
+    Training responses can be supplied either as an explicit feature matrix or
+    as a Gram matrix. Uses an approximate feature representation for split 
+    selection and C++ code for computationally efficient training. Builds on the 
+    'ranger' R package.
 License: GPL-3
 Imports: Rcpp (>= 0.11.2), Matrix
 LinkingTo: Rcpp, RcppEigen
@@ -21,7 +18,6 @@ Suggests:
     survival,
     testthat
 Encoding: UTF-8
-URL: https://imbs-hl.github.io/ranger/,
-    https://github.com/imbs-hl/ranger
-BugReports: https://github.com/imbs-hl/ranger/issues
+URL: https://github.com/lucabergen/okranger
+BugReports: https://github.com/lucabergen/okranger/issues
 Config/roxygen2/version: 8.1.0

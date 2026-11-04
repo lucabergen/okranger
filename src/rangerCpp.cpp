@@ -49,19 +49,20 @@ using namespace ranger;
 
 // [[Rcpp::depends(RcppEigen)]]
 // [[Rcpp::export]]
-Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericMatrix& input_y,
-    std::vector<std::string> variable_names, uint mtry, uint num_trees, bool verbose, uint seed, uint num_threads,
-    bool write_forest, uint importance_mode_r, std::vector<uint>& min_node_size, std::vector<uint>& min_bucket,
+Rcpp::List rangerCpp(unsigned int treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericMatrix& input_y,
+    std::vector<std::string> variable_names, unsigned int mtry, unsigned int num_trees, bool verbose, 
+    unsigned int seed, unsigned int num_threads, bool write_forest, unsigned int importance_mode_r, 
+    std::vector<unsigned int>& min_node_size, std::vector<unsigned int>& min_bucket,
     std::vector<std::vector<double>>& split_select_weights, bool use_split_select_weights,
     std::vector<std::string>& always_split_variable_names, bool use_always_split_variable_names,
     bool prediction_mode, Rcpp::List loaded_forest, Rcpp::RawMatrix snp_data,
     bool sample_with_replacement, bool probability, std::vector<std::string>& unordered_variable_names,
-    bool use_unordered_variable_names, bool save_memory, uint splitrule_r, std::vector<double>& case_weights,
+    bool use_unordered_variable_names, bool save_memory, unsigned int splitrule_r, std::vector<double>& case_weights,
     bool use_case_weights, std::vector<double>& class_weights, bool predict_all, bool keep_inbag,
     std::vector<double>& sample_fraction, double alpha, double minprop, double poisson_tau,
-    bool holdout, uint prediction_type_r, uint num_random_splits, Eigen::SparseMatrix<double>& sparse_x, 
-    bool use_sparse_data, bool order_snps, bool oob_error, uint max_depth, 
-    std::vector<std::vector<size_t>>& inbag, bool use_inbag,
+    bool holdout, unsigned int prediction_type_r, unsigned int num_random_splits, 
+    Eigen::SparseMatrix<double>& sparse_x, bool use_sparse_data, bool order_snps, bool oob_error, 
+    unsigned int max_depth, std::vector<std::vector<size_t>>& inbag, bool use_inbag,
     std::vector<double>& regularization_factor, bool use_regularization_factor, bool regularization_usedepth,
     bool node_stats, std::vector<double>& time_interest, bool use_time_interest, bool any_na,
     double approx_tolerance = 0, std::string output_representation = "NONE") {
@@ -70,7 +71,7 @@ Rcpp::List rangerCpp(uint treetype, Rcpp::NumericMatrix& input_x, Rcpp::NumericM
 
   try {
 
-    // OKranger passes output representation FEATURES or GRAM.
+    // okranger passes output representation FEATURES or GRAM.
     // Existing ranger uses the default NONE.
     OutputRepresentation output_representation_type = OUTPUT_REPRESENTATION_NONE;
 

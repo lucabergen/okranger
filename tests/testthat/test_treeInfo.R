@@ -1,4 +1,4 @@
-library(ranger)
+library(okranger)
 library(survival)
 context("ranger_treeInfo")
 

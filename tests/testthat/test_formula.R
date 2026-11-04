@@ -1,4 +1,4 @@
-library(ranger)
+library(okranger)
 library(survival)
 
 test_that("LHS formula", {

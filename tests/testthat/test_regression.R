@@ -1,6 +1,6 @@
 ## Tests for random forests for regression
 
-library(ranger)
+library(okranger)
 context("ranger_reg")
 
 ## Initialize the random forest for regression

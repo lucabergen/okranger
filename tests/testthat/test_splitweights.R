@@ -1,6 +1,6 @@
 ## Tests for split select weights
 
-library(ranger)
+library(okranger)
 context("ranger_splitweights")
 
 ## Tests

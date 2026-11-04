@@ -1,6 +1,6 @@
 ## Tests for node statistics
 
-library(ranger)
+library(okranger)
 library(survival)
 context("ranger_nodestats")
 

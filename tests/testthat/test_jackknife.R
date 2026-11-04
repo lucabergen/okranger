@@ -1,6 +1,6 @@
 ## Tests for the (infitesimal) jackknife for standard error prediction
 
-library(ranger)
+library(okranger)
 library(survival)
 library(methods)
 context("ranger_jackknife")

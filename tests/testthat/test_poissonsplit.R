@@ -1,4 +1,4 @@
-library(ranger)
+library(okranger)
 context("ranger_poisson")
 
 # Generate poisson distributed outcome

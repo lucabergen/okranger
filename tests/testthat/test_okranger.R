@@ -1,4 +1,4 @@
-library(ranger)
+library(okranger)
 context("okranger")
 
 test_that("Phi OOB predictions are a matrix and match the reported error", {
@@ -11,7 +11,7 @@ test_that("Phi OOB predictions are a matrix and match the reported error", {
     feature3 = sin(x$x2)
   )
   
-  fit <- OKranger(Phi = Phi, x = x, approx.tolerance = 1e-8,
+  fit <- okranger(Phi = Phi, x = x, approx.tolerance = 1e-8,
                            oob.error = TRUE)
   
   expect_true(is.matrix(fit$predictions))
@@ -37,7 +37,7 @@ test_that("K output rejects response prediction but allows terminal-node predict
   K <- tcrossprod(Phi)
   
   fit_K <- expect_warning(
-    OKranger(K = K, x = x, approx.tolerance = 1e-16, 
+    okranger(K = K, x = x, approx.tolerance = 1e-16, 
              num.trees = 5, seed = 123, verbose = FALSE, 
              oob.error = TRUE, write.forest = TRUE),
     "OOB predictions and OOB error are skipped"
@@ -66,7 +66,7 @@ test_that("oob.error = FALSE skips OOB outputs", {
   x <- data.frame(x1 = runif(n), x2 = runif(n))
   Phi <- cbind(feature1 = x$x1, feature2 = x$x2)
   
-  fit <- OKranger(
+  fit <- okranger(
     Phi = Phi,
     x = x,
     approx.tolerance = 1e-8,
@@ -81,14 +81,14 @@ test_that("oob.error = FALSE skips OOB outputs", {
   expect_null(fit$prediction.error)
 })
 
-test_that("OKranger produces the same splits as ranger", {
+test_that("okranger produces the same splits as ranger", {
   
   n <- 30
   x <- data.frame(x1 = runif(n), x2 = runif(n))
   y <- 3*x$x1 + sin(x$x2) + rnorm(n)
   Phi <- matrix(y, ncol = 1)
   
-  fit_Phi <- OKranger(Phi = Phi, x = x, approx.tolerance = 1e-8,
+  fit_Phi <- okranger(Phi = Phi, x = x, approx.tolerance = 1e-8,
                       node.stats = TRUE, keep.inbag = TRUE, seed = 123,
                       num.trees = 30)
   
@@ -97,7 +97,7 @@ test_that("OKranger produces the same splits as ranger", {
                   num.trees = 30)
   
   # TreeKernel stores 0 in split.values for terminal nodes; ranger stores
-  # leaf predictions there. OKranger stores leaf means separately, so compare
+  # leaf predictions there. okranger stores leaf means separately, so compare
   # split.values only for non-terminal nodes.
   for (tree in seq_len(fit_Phi$forest$num.trees)) {
     internal_Phi <- fit_Phi$forest$child.nodeIDs[[tree]][[1]] != 0
@@ -124,7 +124,7 @@ test_that("Gram input skips OOB outputs and predict refers to getForestWeights()
   Phi <- cbind(x$x1^2, x$x2^3)
   K <- tcrossprod(Phi)
   
-  fit <- OKranger(
+  fit <- okranger(
     K = K, x = x, approx.tolerance = 1e-8,
     num.trees = 3, verbose = FALSE, oob.error = TRUE
   )
@@ -146,7 +146,7 @@ test_that("Phi predictions equal regression forest predictions", {
                   write.forest = TRUE, keep.inbag = TRUE,
                   oob.error = TRUE, seed = 123)
   
-  fit_Phi <- OKranger(Phi = Phi, x = x, approx.tolerance = 1e-16,
+  fit_Phi <- okranger(Phi = Phi, x = x, approx.tolerance = 1e-16,
                       write.forest = TRUE, keep.inbag = TRUE,
                       oob.error = TRUE, seed = 123)
   
@@ -193,7 +193,7 @@ test_that("Phi predictions equal probability forest predictions", {
                      oob.error = TRUE, seed = 123,
                      mtry = 7, min.node.size = 3, min.bucket = 1)  
 
-  fit_Phi <- OKranger(Phi = Phi, x = x, approx.tolerance = 1e-16, 
+  fit_Phi <- okranger(Phi = Phi, x = x, approx.tolerance = 1e-16, 
                       write.forest = TRUE, keep.inbag = TRUE,
                       oob.error = TRUE, seed = 123, 
                       mtry = 7, min.node.size = 3, min.bucket = 1)
@@ -238,7 +238,7 @@ test_that("Phi terminal nodes equal regression forest terminal nodes", {
                   write.forest = TRUE, keep.inbag = TRUE,
                   seed = 123)
   
-  fit_Phi <- OKranger(Phi = Phi, x = x, 
+  fit_Phi <- okranger(Phi = Phi, x = x, 
                       approx.tolerance = 1e-10,
                       seed = 123)
   
@@ -280,7 +280,7 @@ test_that("Phi terminal nodes equal probability forest terminal nodes", {
                      mtry = 7, min.node.size = 3, min.bucket = 1, 
                      seed = 123)  
   
-  fit_Phi <- OKranger(Phi = Phi, x = x, approx.tolerance = 1e-16, 
+  fit_Phi <- okranger(Phi = Phi, x = x, approx.tolerance = 1e-16, 
                       mtry = 7, min.node.size = 3, min.bucket = 1, 
                       seed = 123)
   
@@ -314,7 +314,7 @@ test_that("Phi predictions equal weight predictions", {
   x <- as.data.frame(x)
   Phi <- matrix(y, ncol = 1)
   
-  fit <- OKranger(Phi = Phi, x = x, approx.tolerance = 1e-16,
+  fit <- okranger(Phi = Phi, x = x, approx.tolerance = 1e-16,
                   write.forest = TRUE, keep.inbag = TRUE,
                   oob.error = TRUE, seed = 123)
   

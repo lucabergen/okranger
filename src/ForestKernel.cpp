@@ -89,7 +89,7 @@ void ForestKernel::loadForest(size_t num_trees, std::vector<std::vector<std::vec
 
     if (forest_child_nodeIDs.size() < num_trees || forest_split_varIDs.size() < num_trees ||
         forest_split_values.size() < num_trees || forest_terminal_output_means.size() < num_trees) {
-      throw std::runtime_error("Loaded OKranger forest has inconsistent tree counts.");
+      throw std::runtime_error("Loaded okranger forest has inconsistent tree counts.");
     }
 
   this->num_trees = num_trees;
@@ -102,14 +102,14 @@ void ForestKernel::loadForest(size_t num_trees, std::vector<std::vector<std::vec
         if (num_output_features == 0) {
           num_output_features = node_mean.size();
         } else if (node_mean.size() != num_output_features) {
-          throw std::runtime_error("Loaded OKranger forest has inconsistent output dimensions.");
+          throw std::runtime_error("Loaded okranger forest has inconsistent output dimensions.");
         }
       }
     }
   }
   if (num_output_features == 0 &&
     !(output_representation == OUTPUT_REPRESENTATION_GRAM && terminal_node_prediction)) {
-      throw std::runtime_error("Loaded OKranger forest has no terminal Phi means.");
+      throw std::runtime_error("Loaded okranger forest has no terminal Phi means.");
   }
 
   trees.reserve(num_trees);

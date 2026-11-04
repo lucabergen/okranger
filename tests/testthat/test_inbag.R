@@ -1,6 +1,6 @@
 ## Tests for inbag functions
 
-library(ranger)
+library(okranger)
 context("ranger_inbag")
 
 ## Tests

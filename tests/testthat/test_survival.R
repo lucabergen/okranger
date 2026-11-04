@@ -1,6 +1,6 @@
 ## Tests for random forests for survival analysis
 
-library(ranger)
+library(okranger)
 library(survival)
 context("ranger_surv")
 
