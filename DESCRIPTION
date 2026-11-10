@@ -11,7 +11,10 @@ Description: Implements output kernel random forests (OKRFs) for regression with
     selection and C++ code for computationally efficient training. Builds on the 
     'ranger' R package.
 License: GPL-3
-Imports: Rcpp (>= 0.11.2), Matrix
+Imports: 
+    Rcpp (>= 0.11.2), 
+    Matrix,
+    checkmate
 LinkingTo: Rcpp, RcppEigen
 Depends: R (>= 3.1)
 Suggests: 

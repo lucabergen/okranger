@@ -1,14 +1,15 @@
 #' Fit an Output Kernel Random Forest
 #'
 #' Trains an Output Kernel Random Forest using predictor data and either an
-#' output feature matrix or a Gram matrix.
+#' output feature matrix or an output Gram matrix.
 #'
 #' @details
 #' If possible, provide a feature matrix \code{Phi}. This allows out-of-bag 
 #' (OOB) predictions and OOB error to be computed when \code{oob.error = TRUE}. 
-#' If only a Gram matrix \code{K} is provided, OOB predictions and OOB error are 
-#' skipped; use \code{getForestWeights()} to obtain forest weights. Set 
-#' \code{keep.inbag = TRUE} if OOB forest weights are needed.
+#' If only a Gram matrix \code{K} is provided, OOB predictions and OOB error 
+#' are skipped; use \code{getForestWeights()} to obtain forest weights. Set 
+#' \code{keep.inbag = TRUE} and \code{write.forest = TRUE} if OOB forest weights
+#' are needed.
 #'
 #' In \code{Phi}, rows represent observations and columns represent output
 #' features. \code{K} is a square Gram matrix whose rows and columns represent
@@ -18,19 +19,21 @@
 #' The predictor data must be a non-empty data frame without missing or
 #' non-finite values. Character predictors are converted to factors.
 #' Unordered factors are currently supported only with
-#' \code{respect.unordered.factors = NULL}, \code{FALSE}, or \code{"ignore"}.
+#' \code{respect.unordered.factors = "ignore"}.
 #'
-#' @param Phi Optional numeric matrix of output features, with one row per
-#'   observation and one column per output feature.
-#' @param K Optional numeric Gram matrix with one row and column per
-#'   observation in \code{x}. Used only when \code{Phi} is \code{NULL}.
-#'   Symmetry is checked, but positive semidefiniteness (PSD) is not.
+#' @param Phi Optional numeric matrix whose rows are the output feature vectors, 
+#'   with one row per observation in \code{x}.
+#' @param K Optional numeric Gram matrix of the output feature vectors, with one 
+#'   row and column per observation in \code{x}. Used only when \code{Phi} is 
+#'   \code{NULL}. Symmetry is checked, but positive semidefiniteness is not.
 #' @param x Non-empty data frame of predictor variables.
 #' @param approx.tolerance Positive scalar tolerance specifying the allowed
 #'   deviation of the approximated score from the true score.
 #' @param num.trees Number of trees to grow.
-#' @param mtry Number of candidate predictors considered at each split.
-#'   Defaults to the floor of the square root of the number of predictors,
+#' @param mtry Number of candidate predictors considered at each split. Either
+#'   a positive integer no greater than the number of predictors `p`, or a 
+#'   function taking `p` as its single argument and returning an integer between
+#'   1 and `p`. If `NULL`, it defaults to the floor of the square root of `p`, 
 #'   with a minimum of 1.
 #' @param write.forest If \code{TRUE}, retain the fitted forest in the result.
 #' @param min.node.size Minimum number of observations required in a node for
@@ -48,15 +51,13 @@
 #' @param always.split.variables Optional names of predictors that should
 #'   always be considered for splitting.
 #' @param respect.unordered.factors How to handle unordered factors. Defaults
-#'   to \code{"ignore"}; currently only \code{"ignore"} is supported.
+#'   to \code{"ignore"}. Currently only \code{"ignore"} is supported.
 #' @param keep.inbag If \code{TRUE}, retain in-bag counts for each tree.
 #' @param oob.error If \code{TRUE} and \code{Phi} is supplied, compute OOB
 #'   predictions and OOB error. These are skipped when only \code{K} is
 #'   supplied.
-#' @param num.threads Number of threads to use. Defaults to the value of
-#'   \code{R_RANGER_NUM_THREADS} if set; otherwise to the
-#'   \code{ranger.num.threads} option, then the \code{Ncpus} option, and
-#'   finally to 2.
+#' @param num.threads Number of threads to use. Defaults to 2. When set to 
+#'   `0`, all available cores are used.
 #' @param verbose If \code{TRUE}, print status information during fitting.
 #' @param node.stats If \code{TRUE}, calculate and retain node statistics.
 #' @param seed Random seed. If \code{NULL}, a seed is generated.
@@ -95,19 +96,21 @@
 #' 
 #' @seealso \code{\link{ranger}}
 #' @export
-okranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500, 
-                     mtry = NULL, write.forest = TRUE, min.node.size = NULL, 
-                     min.bucket = NULL, max.depth = NULL, replace = TRUE, 
-                     sample.fraction = ifelse(replace, 1, 0.632), 
+okranger <- function(Phi = NULL, K = NULL, x, approx.tolerance = 0.001, 
+                     num.trees = 500, mtry = NULL, write.forest = TRUE, 
+                     min.node.size = NULL, min.bucket = NULL, max.depth = NULL, 
+                     replace = TRUE, sample.fraction = ifelse(replace, 1, 0.632), 
                      split.select.weights = NULL, always.split.variables = NULL,
-                     respect.unordered.factors = NULL, keep.inbag = FALSE, 
+                     respect.unordered.factors = "ignore", keep.inbag = FALSE, 
                      oob.error = TRUE, num.threads = NULL, verbose = TRUE, 
                      node.stats = FALSE, seed = NULL, ...) {
   
   ## Check inputs
   
   if (length(list(...)) > 0) {
-    warning(paste("Unused arguments:", paste(names(list(...)), collapse = ", ")))
+    warning(
+      paste("Unused arguments:", paste(names(list(...)), collapse = ", "))
+    )
   }
   
   if (is.null(Phi) && is.null(K)) {
@@ -116,11 +119,6 @@ okranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
   
   if (!is.null(Phi) && !is.null(K)) {
     warning("Both 'Phi' and 'K' were provided; only 'Phi' will be used.")
-  }
-  
-  if (!is.numeric(approx.tolerance) || length(approx.tolerance) != 1L ||
-      !is.finite(approx.tolerance) || approx.tolerance <= 0) {
-    stop("'approx.tolerance' must be a single finite number greater than 0.")
   }
   
   if (!is.data.frame(x)) {
@@ -144,12 +142,12 @@ okranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
   }
   
   bad_x <- vapply(x, function(col) {
-      if (is.numeric(col) || is.logical(col)) {
-        any(!is.finite(col))
-      } else {
-        anyNA(col)
-      }
-    }, logical(1))
+    if (is.numeric(col) || is.logical(col)) {
+      any(!is.finite(col))
+    } else {
+      anyNA(col)
+    }
+  }, logical(1))
   
   if (any(bad_x)) {
     if (anyNA(x)) {
@@ -158,72 +156,110 @@ okranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
     stop("'x' must not contain non-finite numeric values.")
   }
   
-  if (!is.null(Phi)) {
-    if (!is.matrix(Phi) || !is.numeric(Phi) || is.complex(Phi)) {
-      stop("'Phi' must be a numeric matrix.")
-    }
-    
-    if (nrow(Phi) != nrow(x) || ncol(Phi) < 1L) {
-      stop("'Phi' must have nrow(x) rows and at least one column.")
-    }
-    
-    if (any(!is.finite(Phi))) {
-      stop("'Phi' must not contain missing or infinite values.")
-    }
+  if (!is.numeric(approx.tolerance) || length(approx.tolerance) != 1L ||
+      !is.null(dim(approx.tolerance)) || !is.finite(approx.tolerance) || 
+      is.complex(approx.tolerance) || approx.tolerance <= 0) {
+    stop("'approx.tolerance' must be a finite number greater than 0.")
   }
   
-  if (is.null(Phi) && !is.null(K)) {
-    if (!is.matrix(K) || !is.numeric(K) || is.complex(K)) {
-      stop("'K' must be a numeric matrix.")
+  num.trees <- .as_int_scalar(num.trees, "num.trees", kind = "positive")
+  
+  if (is.function(mtry)) {
+    if (length(formals(mtry)) != 1L) {
+      stop("'mtry' must be a function with one argument.")
     }
-    
-    if (nrow(K) != nrow(x) || ncol(K) != nrow(x)) {
-      stop("'K' must be an n-by-n matrix, where n equals nrow(x).")
-    }
-    
-    if (any(!is.finite(K))) {
-      stop("'K' must not contain missing or infinite values.")
-    }
-
-    if (!isSymmetric(K)) {
-      stop("'K' must be symmetric.")
-    }
+  } else if (is.null(mtry)) {
+    mtry <- 0L
+  } else {
+    mtry <- .as_int_scalar(mtry, "mtry", kind = "positive")
   }
   
-  if (is.null(respect.unordered.factors)) {
-    respect <- "ignore"
-  } else if (is.logical(respect.unordered.factors) &&
-             length(respect.unordered.factors) == 1L &&
-             !is.na(respect.unordered.factors)) {
-    if (respect.unordered.factors) {
-      stop("'respect.unordered.factors = TRUE' ('order') is not supported by okranger.")
-    }
+  .is_bool_scalar(write.forest, "write.forest")
+  
+  # Set ranger regression defaults when NULL and reject explicit 0
+  if (is.null(min.node.size)) {
+    min.node.size <- 5L
+  } else {
+    min.node.size <- .as_int_scalar(
+      min.node.size, "min.node.size", kind = "positive"
+    )
+  }
+  
+  if (is.null(min.bucket)) {
+    min.bucket <- 1L
+  } else {
+    min.bucket <- .as_int_scalar(min.bucket, "min.bucket", kind = "positive")
+  }
+  
+  # 0 means unlimited depth
+  if (is.null(max.depth)) {
+    max.depth <- 0L
+  } else {
+    max.depth <- .as_int_scalar(max.depth, "max.depth", kind = "nonnegative")
+  }
+  
+  .is_bool_scalar(replace, "replace")
+  
+  if (!is.numeric(sample.fraction) || is.complex(sample.fraction) ||
+      length(sample.fraction) != 1L || !is.null(dim(sample.fraction)) || 
+      !is.finite(sample.fraction) || sample.fraction <= 0 || 
+      sample.fraction > 1) {
+    stop("'sample.fraction' must be a finite number in (0, 1].")
+  }
+  
+  if (is.character(respect.unordered.factors) &&
+      length(respect.unordered.factors) == 1L &&
+      !is.na(respect.unordered.factors)) {
     
-    respect <- "ignore"
-  } else if (is.character(respect.unordered.factors) &&
-             length(respect.unordered.factors) == 1L &&
-             !is.na(respect.unordered.factors)) {
     if (respect.unordered.factors == "order") {
-      stop("'respect.unordered.factors = 'order'' is not supported by okranger.")
+      stop(paste0(
+        "'respect.unordered.factors = \"order\"' ",
+        "is not supported by okranger."
+      ))
     }
     
-    # TODO: Add support for missing values
     if (respect.unordered.factors == "partition") {
-      stop("'respect.unordered.factors = 'partition'' is currently not supported by okranger.")
+      stop(paste0(
+        "'respect.unordered.factors = \"partition\"' ",
+        "is currently not supported by okranger."
+      ))
     }
     
     if (respect.unordered.factors != "ignore") {
-      stop("'respect.unordered.factors' must be NULL, FALSE, or 'ignore'.")
+      stop("'respect.unordered.factors' must be 'ignore'.")
     }
     
     respect <- "ignore"
   } else {
-    stop("'respect.unordered.factors' must be NULL, FALSE, or 'ignore'.")
+    stop("'respect.unordered.factors' must be 'ignore'.")
   }
   
+  .is_bool_scalar(keep.inbag, "keep.inbag")
+  
+  .is_bool_scalar(oob.error, "oob.error")
+  
+  # 0 means use all available cores; 1 is also valid.
+  if (is.null(num.threads)) {
+    num.threads <- 2L
+  } else {
+    num.threads <- .as_int_scalar(
+      num.threads, 
+      "num.threads", 
+      kind = "nonnegative"
+    )
+  }
+  
+  .is_bool_scalar(verbose, "verbose")
+  
+  .is_bool_scalar(node.stats, "node.stats")
+  
+  if (is.null(seed)) {
+    seed <- as.integer(stats::runif(1, 0, .Machine$integer.max))
+  } else {
+    seed <- .as_int_scalar(seed, "seed", kind = "nonnegative")
+  }
   
   ## Prepare data and rangerCpp arguments
-  
   independent.variable.names <- colnames(x)
   
   if (is.null(independent.variable.names) ||
@@ -249,6 +285,61 @@ okranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
   # Ranger's C++ interface receives numeric predictor and response matrices
   x <- data.matrix(x)
   
+  if (any(!is.finite(x))) {
+    stop("'x' contains non-finite values after conversion with 'data.matrix()'.")
+  }
+  
+  p <- ncol(x)
+  
+  if (!is.null(Phi)) {
+    
+    if (!is.matrix(Phi) || !is.numeric(Phi) || is.complex(Phi)) {
+      stop("'Phi' must be a real numeric matrix.")
+    }
+    if (nrow(Phi) != nrow(x) || ncol(Phi) < 1L) {
+      stop("'Phi' must have nrow(x) rows and at least one column.")
+    }
+    if (any(!is.finite(Phi))) {
+      stop("'Phi' must contain only finite values.")
+    }
+    
+  } else {
+    
+    if (!is.matrix(K) || !is.numeric(K) || is.complex(K)) {
+      stop("'K' must be a real numeric matrix.")
+    }
+    if (nrow(K) != nrow(x) || ncol(K) != nrow(x)) {
+      stop("'K' must be an n-by-n matrix, where n equals nrow(x).")
+    }
+    if (any(!is.finite(K))) {
+      stop("'K' must contain only finite values.")
+    }
+    if (!isSymmetric(K)) {
+      stop("'K' must be symmetric.")
+    }
+    
+  }
+  
+  if (is.function(mtry)) {
+    
+    mtry_value <- mtry(p)
+    
+    mtry <- .as_int_scalar(
+      mtry_value, 
+      "mtry function return value",
+      kind = "positive"
+    )
+    
+    if (mtry > p) {
+      stop(paste0(
+        "The value returned by the 'mtry' function ",
+        "must not exceed the number of predictors."
+      ))
+    }
+  } else if (mtry != 0L && mtry > p) {
+    stop("'mtry' must not exceed the number of predictors.")
+  }
+  
   if (!is.null(Phi)) {
     y.mat <- as.matrix(Phi)
     output.representation <- "FEATURES"
@@ -257,85 +348,67 @@ okranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
     output.representation <- "GRAM"
   }
   
-  if (identical(output.representation, "GRAM") && isTRUE(oob.error)) {
+  if (identical(output.representation, "GRAM") && oob.error) {
     warning(paste0(
       "OOB predictions and OOB error are skipped when 'K' is provided. ",
       "Use getForestWeights() to obtain OOB forest weights."
     ))
   }
   
-  compute.oob.error <- isTRUE(oob.error) && 
-    identical(output.representation, "FEATURES")
+  compute.oob.error <- oob.error && identical(output.representation, "FEATURES")
   
   # okranger supports data.frame predictors only, so use the dense matrix
   sparse.x <- Matrix::Matrix(matrix(c(0, 0)))
   use.sparse.data <- FALSE
   
-  if (is.null(mtry)) {
-    mtry <- 0L
-  } else {
-    mtry <- as.integer(mtry)
-  }
-  
-  if (is.null(seed)) {
-    seed <- as.integer(runif(1, 0, .Machine$integer.max))
-  } else {
-    seed <- as.integer(seed)
-  }
-  
-  if (is.null(num.threads)) {
-    num.threads <- as.integer(Sys.getenv(
-      "R_RANGER_NUM_THREADS",
-      getOption("ranger.num.threads", getOption("Ncpus", 2L))
-    ))
-  } else {
-    num.threads <- as.integer(num.threads)
-  }
-  
-  if (is.null(min.node.size)) {
-    min.node.size <- 0L
-  } else {
-    min.node.size <- as.integer(min.node.size)
-  }
-  
-  if (is.null(min.bucket)) {
-    min.bucket <- 0L
-  } else {
-    min.bucket <- as.integer(min.bucket)
-  }
-  
-  if (is.null(max.depth)) {
-    max.depth <- 0L
-  } else {
-    max.depth <- as.integer(max.depth)
-  }
-  
   if (is.null(split.select.weights)) {
     split.select.weights <- list(c(0, 0))
     use.split.select.weights <- FALSE
-  } else if (is.numeric(split.select.weights)) {
-    if (length(split.select.weights) != ncol(x)) {
-      stop("'split.select.weights' must have one value per predictor.")
-    }
-    
-    split.select.weights <- list(as.numeric(split.select.weights))
-    use.split.select.weights <- TRUE
-  } else if (is.list(split.select.weights)) {
-    if (length(split.select.weights) != num.trees) {
-      stop("'split.select.weights' must contain one vector per tree.")
-    }
-    
-    split.select.weights <- lapply(split.select.weights, as.numeric)
-    use.split.select.weights <- TRUE
   } else {
-    stop("'split.select.weights' must be NULL, a numeric vector, or a list.")
+    if (is.numeric(split.select.weights) && !is.complex(split.select.weights)) {
+      weights <- list(split.select.weights)
+    } else if (is.list(split.select.weights) &&
+               length(split.select.weights) == num.trees) {
+      weights <- split.select.weights
+    } else {
+      stop(paste0(
+        "'split.select.weights' must be a numeric vector ",
+        "or a list with one vector per tree."
+      ))
+    }
+    
+    valid <- vapply(weights, function(w) {
+      is.numeric(w) && !is.complex(w) && is.null(dim(w)) && 
+        length(w) == ncol(x) && all(is.finite(w)) && all(w >= 0 & w <= 1) &&
+        any(w > 0)
+    }, logical(1))
+    
+    if (!all(valid)) {
+      stop(paste0(
+        "Each 'split.select.weights' vector must contain one finite weight in ",
+        "[0, 1] per predictor, with at least one positive weight."
+      ))
+    }
+    
+    split.select.weights <- lapply(weights, as.numeric)
+    use.split.select.weights <- TRUE
   }
   
-  if (is.null(always.split.variables)) {
+  if (is.null(always.split.variables) || length(always.split.variables) == 0L) {
     always.split.variables <- c("0", "0")
     use.always.split.variables <- FALSE
   } else {
-    always.split.variables <- as.character(always.split.variables)
+    if (!is.character(always.split.variables) ||
+        anyNA(always.split.variables) ||
+        any(!nzchar(trimws(always.split.variables))) ||
+        anyDuplicated(always.split.variables) ||
+        any(!always.split.variables %in% colnames(x))) {
+      stop(paste0(
+        "'always.split.variables' must contain ",
+        "unique names of predictors in 'x'."
+      ))
+    }
+    
     use.always.split.variables <- TRUE
   }
   
@@ -345,7 +418,7 @@ okranger <- function(Phi = NULL, K = NULL, x, approx.tolerance, num.trees = 500,
     input_y = y.mat,
     variable_names = independent.variable.names,
     mtry = mtry,
-    num_trees = as.integer(num.trees),
+    num_trees = num.trees,
     verbose = verbose,
     seed = seed,
     num_threads = num.threads,

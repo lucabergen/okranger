@@ -8,7 +8,7 @@ okranger(
   Phi = NULL,
   K = NULL,
   x,
-  approx.tolerance,
+  approx.tolerance = 0.001,
   num.trees = 500,
   mtry = NULL,
   write.forest = TRUE,
@@ -19,7 +19,7 @@ okranger(
   sample.fraction = ifelse(replace, 1, 0.632),
   split.select.weights = NULL,
   always.split.variables = NULL,
-  respect.unordered.factors = NULL,
+  respect.unordered.factors = "ignore",
   keep.inbag = FALSE,
   oob.error = TRUE,
   num.threads = NULL,
@@ -30,12 +30,12 @@ okranger(
 )
 }
 \arguments{
-\item{Phi}{Optional numeric matrix of output features, with one row per
-observation and one column per output feature.}
+\item{Phi}{Optional numeric matrix whose rows are the output feature vectors, 
+with one row per observation in \code{x}.}
 
-\item{K}{Optional numeric Gram matrix with one row and column per
-observation in \code{x}. Used only when \code{Phi} is \code{NULL}.
-Symmetry is checked, but positive semidefiniteness (PSD) is not.}
+\item{K}{Optional numeric Gram matrix of the output feature vectors, with one 
+row and column per observation in \code{x}. Used only when \code{Phi} is 
+\code{NULL}. Symmetry is checked, but positive semidefiniteness is not.}
 
 \item{x}{Non-empty data frame of predictor variables.}
 
@@ -44,8 +44,10 @@ deviation of the approximated score from the true score.}
 
 \item{num.trees}{Number of trees to grow.}
 
-\item{mtry}{Number of candidate predictors considered at each split.
-Defaults to the floor of the square root of the number of predictors,
+\item{mtry}{Number of candidate predictors considered at each split. Either
+a positive integer no greater than the number of predictors `p`, or a 
+function taking `p` as its single argument and returning an integer between
+1 and `p`. If `NULL`, it defaults to the floor of the square root of `p`, 
 with a minimum of 1.}
 
 \item{write.forest}{If \code{TRUE}, retain the fitted forest in the result.}
@@ -72,7 +74,7 @@ weights, with one value per predictor, or a list with one vector per tree.}
 always be considered for splitting.}
 
 \item{respect.unordered.factors}{How to handle unordered factors. Defaults
-to \code{"ignore"}; currently only \code{"ignore"} is supported.}
+to \code{"ignore"}. Currently only \code{"ignore"} is supported.}
 
 \item{keep.inbag}{If \code{TRUE}, retain in-bag counts for each tree.}
 
@@ -80,10 +82,8 @@ to \code{"ignore"}; currently only \code{"ignore"} is supported.}
 predictions and OOB error. These are skipped when only \code{K} is
 supplied.}
 
-\item{num.threads}{Number of threads to use. Defaults to the value of
-\code{R_RANGER_NUM_THREADS} if set; otherwise to the
-\code{ranger.num.threads} option, then the \code{Ncpus} option, and
-finally to 2.}
+\item{num.threads}{Number of threads to use. Defaults to 2. When set to 
+`0`, all available cores are used.}
 
 \item{verbose}{If \code{TRUE}, print status information during fitting.}
 
@@ -99,14 +99,15 @@ An object of class \code{"ranger"} containing the fitted model
 }
 \description{
 Trains an Output Kernel Random Forest using predictor data and either an
-output feature matrix or a Gram matrix.
+output feature matrix or an output Gram matrix.
 }
 \details{
 If possible, provide a feature matrix \code{Phi}. This allows out-of-bag 
 (OOB) predictions and OOB error to be computed when \code{oob.error = TRUE}. 
-If only a Gram matrix \code{K} is provided, OOB predictions and OOB error are 
-skipped; use \code{getForestWeights()} to obtain forest weights. Set 
-\code{keep.inbag = TRUE} if OOB forest weights are needed.
+If only a Gram matrix \code{K} is provided, OOB predictions and OOB error 
+are skipped; use \code{getForestWeights()} to obtain forest weights. Set 
+\code{keep.inbag = TRUE} and \code{write.forest = TRUE} if OOB forest weights
+are needed.
 
 In \code{Phi}, rows represent observations and columns represent output
 features. \code{K} is a square Gram matrix whose rows and columns represent
@@ -116,7 +117,7 @@ observations. If both \code{Phi} and \code{K} are supplied, only
 The predictor data must be a non-empty data frame without missing or
 non-finite values. Character predictors are converted to factors.
 Unordered factors are currently supported only with
-\code{respect.unordered.factors = NULL}, \code{FALSE}, or \code{"ignore"}.
+\code{respect.unordered.factors = "ignore"}.
 }
 \examples{
 n <- 30

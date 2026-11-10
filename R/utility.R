@@ -26,6 +26,76 @@
 # http://www.imbs-luebeck.de
 # -------------------------------------------------------------------------------
 
+.is_bool_scalar <- function(x, name) {
+  
+  call <- sys.call(sys.parent())
+  
+  fail <- function(message) {
+    stop(simpleError(message, call = call))
+  }
+  
+  if (!is.logical(x)) {
+    fail(sprintf("'%s' must be TRUE or FALSE.", name))
+  }
+  
+  if (length(x) != 1L || !is.null(dim(x))) {
+    fail(sprintf("'%s' must be a single TRUE or FALSE value.", name))
+  }
+  
+  if (is.na(x)) {
+    fail(sprintf("'%s' must not be NA.", name))
+  }
+  
+  x
+}
+
+# Check if the input is an integer scalar (may be type double) 
+# and convert to integer
+.as_int_scalar <- function(x, name, kind = c("positive", "nonnegative")) {
+  
+  call <- sys.call(sys.parent())
+  
+  kind <- match.arg(kind)
+  
+  fail <- function(message) {
+    stop(simpleError(message, call = call))
+  }
+  
+  if (length(x) != 1L || !is.null(dim(x))) {
+    fail(sprintf("'%s' must be a single numeric scalar.", name))
+  }
+  
+  if (!is.numeric(x) || is.complex(x)) {
+    fail(sprintf("'%s' must be a real numeric scalar.", name))
+  }
+  
+  if (is.na(x)) {
+    fail(sprintf("'%s' must not be NA or NaN.", name))
+  }
+  
+  if (!is.finite(x)) {
+    fail(sprintf("'%s' must be finite.", name))
+  }
+  
+  if (kind == "positive" && x < 1) {
+    fail(sprintf("'%s' must be a positive integer.", name))
+  }
+  
+  if (kind == "nonnegative" && x < 0) {
+    fail(sprintf("'%s' must be a non-negative integer.", name))
+  }
+  
+  if (x %% 1 != 0) {
+    fail(sprintf("'%s' must be integer-valued.", name))
+  }
+  
+  if (x > .Machine$integer.max) {
+    fail(sprintf("'%s' must not exceed R's maximum integer.", name))
+  }
+  
+  as.integer(round(x))
+}
+
 # Convert integer to factor
 integer.to.factor <- function(x, labels) {
   factor(x, levels = seq_along(labels), labels = labels)
